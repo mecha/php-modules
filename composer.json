@@ -1,0 +1,29 @@
+{
+    "name": "mecha/php-modules",
+    "type": "library",
+    "require": {
+        "php": ">=7.4",
+        "psr/container": "^2.0"
+    },
+    "require-dev": {
+        "vimeo/psalm": "^5.15",
+        "phpunit/phpunit": "^10.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mecha\\Modules\\": "src/"
+        },
+        "files": [
+            "inc/functions.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Mecha\\Modules\\Stubs\\": "tests/stubs/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit --color=always",
+        "psalm": "psalm"
+    }
+}
