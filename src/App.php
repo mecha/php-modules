@@ -44,8 +44,6 @@ class App
 
             if (is_callable($run)) {
                 $this->callbacks[] = $run;
-            } else {
-                var_dump($run);
             }
         }
 
