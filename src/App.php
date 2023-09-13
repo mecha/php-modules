@@ -44,10 +44,9 @@ class App
         }
 
         if ($module instanceof Generator) {
-            $run = $module->getReturn();
-
-            if (is_callable($run)) {
-                $this->callbacks[] = $run;
+            $return = $module->getReturn();
+            if (is_callable($return)) {
+                $this->callbacks[] = $return;
             }
         }
 
