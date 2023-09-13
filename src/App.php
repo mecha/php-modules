@@ -36,6 +36,10 @@ class App
     public function addModule(iterable $module): self
     {
         foreach ($module as $key => $service) {
+            if (!is_string($key)) {
+                $key = uniqid('anon');
+            }
+
             $this->container->add($key, $service);
 
             if ($service->run !== null) {
