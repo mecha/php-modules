@@ -46,4 +46,15 @@ class ServiceTest extends TestCase
 
         $this->assertEqualsCanonicalizing($expected, $actual);
     }
+
+    /** @covers Service::then */
+    public function test_then(): void
+    {
+        $s1 = new Service(fn() => null, ['foo', 'bar']);
+        $s2 = $s1->then($cb = fn() => null);
+
+        $this->assertNotSame($s1, $s2);
+        $this->assertNull($s1->run);
+        $this->assertSame($cb, $s2->run);
+    }
 }

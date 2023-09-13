@@ -37,6 +37,10 @@ class App
     {
         foreach ($module as $key => $service) {
             $this->container->add($key, $service);
+
+            if ($service->run !== null) {
+                $this->callbacks[] = fn($c) => ($service->run)($c->get($key), $c);
+            }
         }
 
         if ($module instanceof Generator) {

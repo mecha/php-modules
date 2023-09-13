@@ -12,15 +12,20 @@ use Psr\Container\ContainerInterface;
 class Service
 {
     /** @var callable(DepResolveFn,ContainerInterface,mixed): mixed */
-    public $fn;
+    public $factory;
+    /** @var list<string|Service> */
     public array $deps = [];
+    /** @var null|callable(mixed,ContainerInterface): void */
+    public $run = null;
 
     /**
-     * @param callable(DepResolveFn,ContainerInterface,mixed): mixed $fn
-     * @param list<string|Service> $deps */
-    public function __construct(callable $fn, array $deps = [])
+     * @param callable(DepResolveFn,ContainerInterface,mixed): mixed $factory
+     * @param list<string|Service> $deps
+     * @param null|callable(mixed,ContainerInterface): void $run
+     */
+    public function __construct(callable $factory, array $deps = [], ?callable $run = null)
     {
-        $this->fn = $fn;
+        $this->factory = $factory;
         $this->deps = $deps;
     }
 
@@ -51,6 +56,14 @@ class Service
         return $this->withDeps($newDeps);
     }
 
+    /** @param callable(mixed,ContainerInterface): void $run */
+    public function then(callable $run): self
+    {
+        $clone = clone $this;
+        $clone->run = $run;
+        return $clone;
+    }
+
     /**
      * @param mixed $prev
      * @return mixed
@@ -59,7 +72,7 @@ class Service
     {
         $deps = self::resolveDeps($c, $this->deps);
 
-        return call_user_func_array($this->fn, [$deps, $c, $prev]);
+        return call_user_func_array($this->factory, [$deps, $c, $prev]);
     }
 
     /**
