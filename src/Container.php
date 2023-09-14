@@ -38,10 +38,11 @@ class Container implements ContainerInterface
         array_push($this->stack, $id);
 
         if (!array_key_exists($id, $this->factories)) {
-            throw new class ($id) extends Exception implements NotFoundExceptionInterface {
-                public function __construct(string $id)
+            $stack = $this->getStackAsString();
+            throw new class ($id, $stack) extends Exception implements NotFoundExceptionInterface {
+                public function __construct(string $id, string $stack)
                 {
-                    parent::__construct("Service \"$id\" not found. Stack: " . $this->getStackAsString());
+                    parent::__construct("Service \"$id\" not found. Stack: " . $stack);
                 }
             };
         }
@@ -60,6 +61,6 @@ class Container implements ContainerInterface
 
     protected function getStackAsString(): string
     {
-        return implode(' -> ', array_keys($this->stack));
+        return implode(' -> ', $this->stack);
     }
 }
