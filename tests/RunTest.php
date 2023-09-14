@@ -8,6 +8,7 @@ use Mecha\Modules\Container;
 use Mecha\Modules\Psr7Compiler;
 use PHPUnit\Framework\TestCase;
 
+use Psr\Container\ContainerInterface;
 use function Mecha\Modules\run;
 use function Mecha\Modules\value;
 
@@ -35,6 +36,25 @@ class RunTest extends TestCase
 
         foreach ($compiler->getActions() as $cb) {
             $cb($c);
+        }
+    }
+
+    /** @covers run Service::test */
+    public function test_action(): void
+    {
+        $compiler = new Psr7Compiler();
+        $compiler->addModule([
+            'foo' => value('foo'),
+            'bar' => value('bar')
+                    ->then(fn ($bar, $foo, ContainerInterface $c) => printf('%s%s', $foo, $bar), ['foo']),
+        ]);
+
+        $c = new Container($compiler->getFactories());
+
+        $this->expectOutputString('foobar');
+
+        foreach ($compiler->getActions() as $action) {
+            $action($c);
         }
     }
 }

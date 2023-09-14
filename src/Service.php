@@ -56,11 +56,15 @@ class Service
         return $this->withDeps($newDeps);
     }
 
-    /** @param callable(mixed,ContainerInterface):void $action */
-    public function then(callable $action): self
+    /** @param callable(mixed,ContainerInterface): void $action */
+    public function then(callable $action, iterable $deps = []): self
     {
         $clone = clone $this;
-        $clone->action = $action;
+        $clone->action = function($value, ContainerInterface $c) use ($action, $deps) {
+            $deps = self::resolveDeps($c, $deps);
+            call_user_func_array($action, [$value, ...$deps, $c]);
+        };
+
         return $clone;
     }
 
