@@ -50,7 +50,7 @@ function factory(callable $callback, array $deps = []): Service
 /** @param list<string|Service> $deps */
 function callback(callable $callback, array $deps = []): Service
 {
-    return new Service(fn ($deps) => fn (...$args) => $callback(...$deps, ...$args), $deps);
+    return new Service(fn ($deps) => fn (...$args) => $callback(...$args, ...$deps), $deps);
 }
 
 /** @param list<string|Service> $deps */

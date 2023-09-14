@@ -14,11 +14,11 @@ class CallbackTest extends TestCase
     /** @covers callback */
     public function test_callback(): void
     {
-        $alias = callback(fn ($d1, $d2, $a1) => "$d1-$d2-$a1", ['foo', 'bar']);
-        $cntr = new TestContainer(['foo' => '123', 'bar' => '456']);
-        $actual = $alias($cntr);
+        $callback = callback(fn ($a1, $a2, $d1, $d2) => "$a1-$a2-$d1-$d2", ['foo', 'bar']);
+        $cntr = new TestContainer(['foo' => '56', 'bar' => '78']);
+        $actual = $callback($cntr);
 
         $this->assertIsCallable($actual);
-        $this->assertEquals('123-456-789', $actual('789'));
+        $this->assertEquals('12-34-56-78', $actual('12', '34'));
     }
 }
