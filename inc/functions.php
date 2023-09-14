@@ -30,6 +30,11 @@ function alias(string $original): Service
     return new Service(fn ($deps) => $deps->current(), [$original]);
 }
 
+function template(string $template, array $deps = []): Service
+{
+    return new Service(fn ($deps) => vsprintf($template, [...$deps]), $deps);
+}
+
 /** @param list<string|Service> $deps */
 function instance(string $class, array $deps = []): Service
 {
