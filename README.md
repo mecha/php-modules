@@ -19,6 +19,7 @@ A system for assembling a PHP application from a series of modules.
     * [Module Scoping](#module-scoping)
 * [Modular Applications](#modular-applications)
 * [Full Example](#full-example)
+* [License](#license)
 
 # Motivation
 
@@ -656,3 +657,9 @@ $app = new App([
 
 $app->run();
 ```
+
+# License
+
+This project is licensed under the [MIT License](./LICENSE).
+
+Copyright © 2023 Miguel Muscat
