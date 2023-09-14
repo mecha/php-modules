@@ -11,7 +11,7 @@ use function Mecha\Modules\scope;
 use function Mecha\Modules\factory;
 use function Mecha\Modules\run;
 use function Mecha\Modules\value;
-use function Mecha\Modules\constant;
+use function Mecha\Modules\constValue;
 
 class FullTest extends TestCase
 {
@@ -22,7 +22,7 @@ class FullTest extends TestCase
 
         $module = function () {
             yield 'greeting' => value("hello %s\n");
-            yield 'user' => constant('USER');
+            yield 'user' => constValue('USER');
 
             return factory(function ($greeting, $user) {
                 printf($greeting, $user);
@@ -50,7 +50,7 @@ class FullTest extends TestCase
 
         $module = function () {
             yield 'greeting' => value("hello %s\n");
-            yield 'user' => constant('USER');
+            yield 'user' => constValue('USER');
 
             yield run(function ($greeting, $user) {
                 printf($greeting, $user);

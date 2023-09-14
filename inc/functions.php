@@ -15,7 +15,7 @@ function globalVar(string $name): Service
     return new Service(fn () => $GLOBALS[$name]);
 }
 
-function constant(string $name): Service
+function constValue(string $name): Service
 {
     return new Service(fn () => \constant($name));
 }

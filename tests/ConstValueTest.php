@@ -7,16 +7,16 @@ namespace Mecha\Modules\Test;
 use Mecha\Modules\Stubs\TestContainer;
 use PHPUnit\Framework\TestCase;
 
-use function Mecha\Modules\constant;
+use function Mecha\Modules\constValue;
 
-class ConstantTest extends TestCase
+class ConstValueTest extends TestCase
 {
     /** @covers constant */
     public function test_constant(): void
     {
         define('MY_CONSTANT', 'my value');
 
-        $service = constant('MY_CONSTANT');
+        $service = constValue('MY_CONSTANT');
         $cntr = new TestContainer();
         $actual = $service($cntr);
 
