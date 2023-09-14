@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Mecha\Modules;
 
+/**
+ * Scope a module by prefixing its service IDs.
+ *
+ * @param iterable<mixed,callable> $module
+ */
 function scope(string $prefix, iterable $module): iterable
 {
     foreach ($module as $key => $service) {
