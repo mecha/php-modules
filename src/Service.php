@@ -16,7 +16,7 @@ class Service
     /** @var list<string|Service> */
     public array $deps = [];
     /** @var null|callable(mixed,ContainerInterface): void */
-    public $run = null;
+    public $action = null;
 
     /**
      * @param callable(DepResolveFn,ContainerInterface,mixed): mixed $factory
@@ -56,11 +56,11 @@ class Service
         return $this->withDeps($newDeps);
     }
 
-    /** @param callable(mixed,ContainerInterface): void $run */
-    public function then(callable $run): self
+    /** @param callable(mixed,ContainerInterface):void $action */
+    public function then(callable $action): self
     {
         $clone = clone $this;
-        $clone->run = $run;
+        $clone->action = $action;
         return $clone;
     }
 

@@ -54,7 +54,7 @@ class ServiceTest extends TestCase
         $s2 = $s1->then($cb = fn() => null);
 
         $this->assertNotSame($s1, $s2);
-        $this->assertNull($s1->run);
-        $this->assertSame($cb, $s2->run);
+        $this->assertNull($s1->action);
+        $this->assertSame($cb, $s2->action);
     }
 }
