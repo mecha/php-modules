@@ -20,6 +20,11 @@ function constant(string $name): Service
     return new Service(fn () => \constant($name));
 }
 
+function env(string $name): Service
+{
+    return new Service(fn () => $_ENV[$name]);
+}
+
 function alias(string $original): Service
 {
     return new Service(fn ($deps) => $deps->current(), [$original]);
