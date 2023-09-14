@@ -14,7 +14,8 @@
             "Mecha\\Modules\\": "src/"
         },
         "files": [
-            "inc/functions.php"
+            "inc/services.php",
+            "inc/modules.php"
         ]
     },
     "autoload-dev": {
