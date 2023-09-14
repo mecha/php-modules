@@ -20,3 +20,15 @@ function scope(string $prefix, iterable $module): iterable
         return null;
     }
 }
+
+/**
+ * Group a list of modules into a single module.
+ *
+ * @param iterable<int,iterable<mixed,callable>> $modules
+ */
+function group(iterable $modules): iterable
+{
+    foreach ($modules as $module) {
+        yield from $module;
+    }
+}
