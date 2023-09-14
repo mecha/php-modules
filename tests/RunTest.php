@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Mecha\Modules\Tests;
 
-use Mecha\Modules\App;
+use Mecha\Modules\Container;
+use Mecha\Modules\Psr7Compiler;
 use PHPUnit\Framework\TestCase;
 
 use function Mecha\Modules\run;
@@ -16,7 +17,7 @@ class RunTest extends TestCase
     public function test_run(): void
     {
         $module = [
-            'test' => run(
+            run(
                 function ($d1, $d2) {
                     echo "$d1 $d2\n";
                 },
@@ -26,10 +27,14 @@ class RunTest extends TestCase
             'd2' => value('world')
         ];
 
-        $app = new App();
-        $app->addModule($module);
+        $compiler = new Psr7Compiler();
+        $compiler->addModule($module);
+        $c = new Container($compiler->getFactories());
 
         $this->expectOutputString("hello world\n");
-        $app->run();
+
+        foreach ($compiler->getActions() as $cb) {
+            $cb($c);
+        }
     }
 }

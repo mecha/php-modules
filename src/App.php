@@ -4,30 +4,37 @@ declare(strict_types=1);
 
 namespace Mecha\Modules;
 
-use Generator;
-use Psr\Container\ContainerInterface;
-
+/**
+ * Provides a preset way to compile services from modules into a container and run all callbacks.
+ */
 class App
 {
-    protected Container $container;
+    protected Psr7Compiler $compiler;
 
-    /** @var array<string,callable(ContainerInterface):mixed*/
-    protected array $factories = [];
+    /** @var callable(array<string,callable>):ContainerInterface */
+    protected $cntrFactory;
 
-    /** @var list<callable(ContainerInterface):void> */
-    protected array $callbacks = [];
-
-    public function __construct()
+    /**
+     * Construct a new modular application.
+     *
+     * @param iterable<iterable<mixed,callable>> $modules A list of modules, each being an iterable of services.
+     * @param null|callable(array<string,callable>):ContainerInterface $cntrFactory A function that creates a PSR-7
+     *        container from a list of services. If omitted, the bundled {@link Container} class will be used.
+     */
+    public function __construct(iterable $modules = [], ?callable $cntrFactory = null)
     {
-        $this->container = new Container();
+        $this->compiler = new Psr7Compiler();
+        $this->cntrFactory = $cntrFactory ?? fn (array $factories) => new Container($factories);
+
+        if (count($modules) > 0) {
+            $this->addModules($modules);
+        }
     }
 
     /** @param iterable<iterable<int|string,Service> $modules */
     public function addModules(iterable $modules): self
     {
-        foreach ($modules as $module) {
-            $this->addModule($module);
-        }
+        $this->compiler->addModules($modules);
 
         return $this;
     }
@@ -35,32 +42,17 @@ class App
     /** @param iterable<string,Service> $module */
     public function addModule(iterable $module): self
     {
-        foreach ($module as $key => $service) {
-            if (!is_string($key)) {
-                $key = uniqid('anon');
-            }
-
-            $this->container->add($key, $service);
-
-            if ($service->run !== null) {
-                $this->callbacks[] = fn($c) => ($service->run)($c->get($key), $c);
-            }
-        }
-
-        if ($module instanceof Generator) {
-            $return = $module->getReturn();
-            if (is_callable($return)) {
-                $this->callbacks[] = $return;
-            }
-        }
+        $this->compiler->addModule($module);
 
         return $this;
     }
 
     public function run(): void
     {
-        foreach ($this->callbacks as $callback) {
-            $callback($this->container);
+        $cntr = call_user_func($this->cntrFactory, $this->compiler->getFactories());
+
+        foreach ($this->compiler->getActions() as $callback) {
+            $callback($cntr);
         }
     }
 }
