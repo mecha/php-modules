@@ -8,7 +8,6 @@ use Mecha\Modules\Container;
 use Mecha\Modules\Psr7Compiler;
 use PHPUnit\Framework\TestCase;
 
-use Psr\Container\ContainerInterface;
 use function Mecha\Modules\run;
 use function Mecha\Modules\value;
 
@@ -46,7 +45,7 @@ class RunTest extends TestCase
         $compiler->addModule([
             'foo' => value('foo'),
             'bar' => value('bar')
-                    ->then(fn ($bar, $foo, ContainerInterface $c) => printf('%s%s', $foo, $bar), ['foo']),
+                    ->then(fn ($bar, $foo) => printf('%s%s', $foo, $bar), ['foo']),
         ]);
 
         $c = new Container($compiler->getFactories());

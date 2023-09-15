@@ -73,7 +73,8 @@ class Psr7Compiler
         }
 
         if ($service instanceof Service && $service->action !== null) {
-            $this->actions[] = fn (ContainerInterface $c) => call_user_func($service->action, $c->get($id), $c);
+            $action = $service->action;
+            $this->actions[] = fn (ContainerInterface $c) => $action($c)($c->get($id));
         }
 
         return $this;

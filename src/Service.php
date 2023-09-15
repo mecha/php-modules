@@ -16,18 +16,19 @@ class Service
     public $factory;
     /** @var list<string|Service> */
     public array $deps = [];
-    /** @var null|callable(mixed,ContainerInterface): void */
+    /** @var Service|null */
     public $action = null;
 
     /**
      * @param callable(DepResolveFn,ContainerInterface,mixed): mixed $factory
      * @param list<string|Service> $deps
-     * @param null|callable(mixed,ContainerInterface): void $run
+     * @param Service|null $run
      */
-    public function __construct(callable $factory, array $deps = [], ?callable $run = null)
+    public function __construct(callable $factory, array $deps = [], ?Service $action = null)
     {
         $this->factory = $factory;
         $this->deps = $deps;
+        $this->action = $action;
     }
 
     /** @param list<string|Service> $deps */
@@ -47,41 +48,40 @@ class Service
                 $newDeps[] = $dep->prefixDeps($prefix);
             } elseif (is_string($dep)) {
                 if ($dep[0] === '@') {
-                    $newDeps[] = $dep;
+                    $newDeps[] = substr($dep, 1);
                 } else {
                     $newDeps[] = $prefix . $dep;
                 }
             }
         }
 
-        return $this->withDeps($newDeps);
+        $clone = $this->withDeps($newDeps);
+
+        if ($clone->action instanceof self) {
+            $clone->action = $clone->action->prefixDeps($prefix);
+        }
+
+        return $clone;
     }
 
     /** @param callable(mixed,ContainerInterface): void $action */
     public function then(callable $action, iterable $deps = []): self
     {
         $clone = clone $this;
-        $clone->action = function($value, ContainerInterface $c) use ($action, $deps) {
-            $deps = self::resolveDeps($c, $deps);
-            call_user_func_array($action, [$value, ...$deps, $c]);
-        };
+        $clone->action = callback($action, $deps);
 
         return $clone;
     }
 
     public function thenUse(string $id): self
     {
-        $clone = clone $this;
-        $clone->action = function($value, ContainerInterface $c) use ($id) {
-            $callback = $c->get($id);
-            if (is_callable($callback)) {
-                call_user_func($callback, $value);
+        return $this->then(function($value, $action) use ($id) {
+            if (is_callable($action)) {
+                call_user_func($action, $value);
             } else {
                 throw new LogicException("Cannot use non-callable service \"$id\" as a run action.");
             }
-        };
-
-        return $clone;
+        }, [$id]);
     }
 
     /**
