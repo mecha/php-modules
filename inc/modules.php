@@ -30,6 +30,19 @@ function scope(string $prefix, iterable $module): iterable
 }
 
 /**
+ * Scopes a series of modules by prefixing their service IDs using the keys they are mapped to in the iterable.
+ *
+ * @param string $delimiter The delimiter to use between the key and the service ID.
+ * @param iterable<string,iterable<mixed,callable>> $modules An associative iterable of modules.
+ */
+function scopeAssoc(string $delimiter = '.', iterable $modules): iterable
+{
+    foreach ($modules as $key => $module) {
+        yield scope($key . $delimiter, $module);
+    }
+}
+
+/**
  * Group a list of modules into a single module.
  *
  * @param iterable<int,iterable<mixed,callable>> $modules
