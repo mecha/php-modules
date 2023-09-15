@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Mecha\Modules\Tests;
 
+use ArrayObject;
+use Mecha\Modules\Container;
+use Mecha\Modules\Psr7Compiler;
 use Mecha\Modules\Service;
 use Mecha\Modules\Stubs\TestContainer;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use function Mecha\Modules\callback;
 
 class ServiceTest extends TestCase
 {
@@ -56,5 +60,33 @@ class ServiceTest extends TestCase
         $this->assertNotSame($s1, $s2);
         $this->assertNull($s1->action);
         $this->assertIsCallable($s2->action);
+    }
+
+    /** @covers Service::thenUse */
+    public function test_thenUse(): void
+    {
+        $s1 = new Service(fn() => 15);
+        $s2 = $s1->thenUse('action');
+
+        $this->assertNotSame($s1, $s2);
+        $this->assertNull($s1->action);
+        $this->assertIsCallable($s2->action);
+
+        $compiler = new Psr7Compiler();
+        $compiler->addModule([
+            'item' => $s2,
+            'list' => fn () => new ArrayObject([6, 9]),
+            'action' => callback(fn($value, $list) => $list[] = $value, ['list']),
+        ]);
+
+        $c = new Container($compiler->getFactories());
+        
+        foreach ($compiler->getActions() as $action) {
+            $action($c);
+        }
+
+        $list = $c->get('list');
+
+        $this->assertEqualsCanonicalizing([6, 9, 15], $list->getArrayCopy());
     }
 }

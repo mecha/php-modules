@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mecha\Modules;
 
+use LogicException;
 use Psr\Container\ContainerInterface;
 
 /**
@@ -63,6 +64,21 @@ class Service
         $clone->action = function($value, ContainerInterface $c) use ($action, $deps) {
             $deps = self::resolveDeps($c, $deps);
             call_user_func_array($action, [$value, ...$deps, $c]);
+        };
+
+        return $clone;
+    }
+
+    public function thenUse(string $id): self
+    {
+        $clone = clone $this;
+        $clone->action = function($value, ContainerInterface $c) use ($id) {
+            $callback = $c->get($id);
+            if (is_callable($callback)) {
+                call_user_func($callback, $value);
+            } else {
+                throw new LogicException("Cannot use non-callable service \"$id\" as a run action.");
+            }
         };
 
         return $clone;
