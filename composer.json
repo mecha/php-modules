@@ -1,6 +1,8 @@
 {
     "name": "mecha/php-modules",
+    "description": "A system for assembling a PHP application from a series of modules.",
     "type": "library",
+    "license": "MIT",
     "require": {
         "php": ">=7.4",
         "psr/container": "^2.0"
