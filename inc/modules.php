@@ -14,8 +14,18 @@ use Generator;
 function scope(string $prefix, iterable $module): iterable
 {
     foreach ($module as $key => $service) {
-        $newKey = is_string($key) ? $prefix . $key : $key;
-        $newSrv = $service->prefixDeps($prefix);
+        if (is_string($key)) {
+            $newKey = maybePrefix($key, $prefix, '@');
+        } else {
+            $newKey = $key;
+        }
+
+        if ($service instanceof Service) {
+            $newSrv = $service->prefixDeps($prefix);
+        } else {
+            $newSrv = $service;
+        }
+
         yield $newKey => $newSrv;
     }
 
@@ -51,5 +61,14 @@ function group(iterable $modules): iterable
 {
     foreach ($modules as $module) {
         yield from $module;
+    }
+}
+
+function maybePrefix(string $str, string $prefix, string $ignore): string
+{
+    if ($str[0] === $ignore) {
+        return substr($str, strlen($ignore));
+    } else {
+        return $prefix . $str;
     }
 }

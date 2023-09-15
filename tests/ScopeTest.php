@@ -25,7 +25,7 @@ class ScopeTest extends TestCase
         $module = function () use ($foo, $bar, $baz) {
             yield 'foo' => $foo;
             yield 'bar' => $bar;
-            yield 'baz' => $baz;
+            yield '@baz' => $baz;
         };
 
         $prefix = 'prefix/';
@@ -35,7 +35,7 @@ class ScopeTest extends TestCase
         $expected = [
             'prefix/foo' => $foo->prefixDeps($prefix),
             'prefix/bar' => $bar->prefixDeps($prefix),
-            'prefix/baz' => $baz->prefixDeps($prefix),
+            'baz' => $baz->prefixDeps($prefix),
         ];
 
         $this->assertEqualsCanonicalizing($expected, $actual);

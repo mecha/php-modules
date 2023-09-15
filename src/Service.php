@@ -47,11 +47,7 @@ class Service
             if ($dep instanceof self) {
                 $newDeps[] = $dep->prefixDeps($prefix);
             } elseif (is_string($dep)) {
-                if ($dep[0] === '@') {
-                    $newDeps[] = substr($dep, 1);
-                } else {
-                    $newDeps[] = $prefix . $dep;
-                }
+                $newDeps[] = maybePrefix($dep, $prefix, '@');
             }
         }
 
