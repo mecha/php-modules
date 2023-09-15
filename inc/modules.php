@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Mecha\Modules;
 
+use Generator;
+
 /**
  * Scope a module by prefixing its service IDs.
  *
@@ -17,13 +19,14 @@ function scope(string $prefix, iterable $module): iterable
         yield $newKey => $newSrv;
     }
 
-    $run = $module->getReturn();
-
-    if ($run !== null) {
-        return $run->prefixDeps($prefix);
-    } else {
-        return null;
+    if ($module instanceof Generator) {
+        $run = $module->getReturn();
+        if ($run !== null) {
+            return $run->prefixDeps($prefix);
+        }
     }
+
+    return null;
 }
 
 /**

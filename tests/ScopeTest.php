@@ -12,7 +12,7 @@ use function Mecha\Modules\value;
 class ScopeTest extends TestCase
 {
     /** @covers scope */
-    public function test_scope(): void {
+    public function test_scope_generator(): void {
 
         $foo = value(1);
         $bar = factory(fn() => null, ['foo']);
@@ -26,6 +26,32 @@ class ScopeTest extends TestCase
 
         $prefix = 'prefix/';
         $sModule = scope($prefix, $module());
+
+        $actual = [...$sModule];
+        $expected = [
+            'prefix/foo' => $foo->prefixDeps($prefix),
+            'prefix/bar' => $bar->prefixDeps($prefix),
+            'prefix/baz' => $baz->prefixDeps($prefix),
+        ];
+
+        $this->assertEqualsCanonicalizing($expected, $actual);
+    }
+
+    /** @covers scope */
+    public function test_scope_array(): void {
+
+        $foo = value(1);
+        $bar = factory(fn() => null, ['foo']);
+        $baz = factory(fn() => null, ['foo', 'bar', '@qux']);
+
+        $module = [
+            'foo' => $foo,
+            'bar' => $bar,
+            'baz' => $baz,
+        ];
+
+        $prefix = 'prefix/';
+        $sModule = scope($prefix, $module);
 
         $actual = [...$sModule];
         $expected = [
