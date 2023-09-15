@@ -26,7 +26,7 @@ class App
         $this->compiler = new Psr7Compiler();
         $this->cntrFactory = $cntrFactory ?? fn (array $factories) => new Container($factories);
 
-        if (count($modules) > 0) {
+        if (!empty($modules)) {
             $this->addModules($modules);
         }
     }
