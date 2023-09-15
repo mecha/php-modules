@@ -72,9 +72,10 @@ class Psr7Compiler
             $this->factories[$id] = $service;
         }
 
-        if ($service instanceof Service && $service->action !== null) {
-            $action = $service->action;
-            $this->actions[] = fn (ContainerInterface $c) => $action($c)($c->get($id));
+        if ($service instanceof Service) {
+            foreach ($service->actions as $action) {
+                $this->actions[] = fn (ContainerInterface $c) => $action($c)($c->get($id));
+            }
         }
 
         return $this;

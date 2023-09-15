@@ -60,8 +60,9 @@ class ServiceTest extends TestCase
         $actual = $service->prefixDeps('prefix/');
 
         $this->assertEquals(['prefix/foo'], $actual->deps);
-        $this->assertInstanceOf(Service::class, $actual->action);
-        $this->assertEquals(['prefix/bar', 'baz'], $actual->action->deps);
+        $this->assertCount(1, $actual->actions);
+        $this->assertInstanceOf(Service::class, $actual->actions[0]);
+        $this->assertEquals(['prefix/bar', 'baz'], $actual->actions[0]->deps);
     }
 
     /** @covers Service::then */
@@ -71,8 +72,21 @@ class ServiceTest extends TestCase
         $s2 = $s1->then($cb = fn() => null);
 
         $this->assertNotSame($s1, $s2);
-        $this->assertNull($s1->action);
-        $this->assertIsCallable($s2->action);
+        $this->assertCount(0, $s1->actions);
+        $this->assertCount(1, $s2->actions);
+    }
+
+    /** @covers Service::then */
+    public function test_then_multiple(): void
+    {
+        $s1 = new Service(fn() => null, ['foo', 'bar']);
+        $s2 = $s1->then(fn() => null);
+        $s3 = $s2->then(fn() => null);
+
+        $this->assertNotSame($s1, $s2);
+        $this->assertCount(0, $s1->actions);
+        $this->assertCount(1, $s2->actions);
+        $this->assertCount(2, $s3->actions);
     }
 
     /** @covers Service::thenUse */
@@ -82,8 +96,8 @@ class ServiceTest extends TestCase
         $s2 = $s1->thenUse('action');
 
         $this->assertNotSame($s1, $s2);
-        $this->assertNull($s1->action);
-        $this->assertIsCallable($s2->action);
+        $this->assertCount(0, $s1->actions);
+        $this->assertCount(1, $s2->actions);
 
         $compiler = new Psr7Compiler();
         $compiler->addModule([

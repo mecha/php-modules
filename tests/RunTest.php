@@ -45,12 +45,13 @@ class RunTest extends TestCase
         $compiler->addModule([
             'foo' => value('foo'),
             'bar' => value('bar')
-                    ->then(fn ($bar, $foo) => printf('%s%s', $foo, $bar), ['foo']),
+                    ->then(fn ($bar, $foo) => printf('%s%s', $foo, $bar), ['foo'])
+                    ->then(fn () => printf('test', $foo, $bar)),
         ]);
 
         $c = new Container($compiler->getFactories());
 
-        $this->expectOutputString('foobar');
+        $this->expectOutputString('foobartest');
 
         foreach ($compiler->getActions() as $action) {
             $action($c);

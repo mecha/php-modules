@@ -16,19 +16,19 @@ class Service
     public $factory;
     /** @var list<string|Service> */
     public array $deps = [];
-    /** @var Service|null */
-    public $action = null;
+    /** @var list<Service> */
+    public $actions = [];
 
     /**
      * @param callable(DepResolveFn,ContainerInterface,mixed): mixed $factory
      * @param list<string|Service> $deps
-     * @param Service|null $run
+     * @param list<Service> $actions
      */
-    public function __construct(callable $factory, array $deps = [], ?Service $action = null)
+    public function __construct(callable $factory, array $deps = [], array $actions = [])
     {
         $this->factory = $factory;
         $this->deps = $deps;
-        $this->action = $action;
+        $this->actions = $actions;
     }
 
     /** @param list<string|Service> $deps */
@@ -57,9 +57,12 @@ class Service
 
         $clone = $this->withDeps($newDeps);
 
-        if ($clone->action instanceof self) {
-            $clone->action = $clone->action->prefixDeps($prefix);
+        $newActions = [];
+        foreach ($clone->actions as $action) {
+            $newActions[] = $action->prefixDeps($prefix);
         }
+
+        $clone->actions = $newActions;
 
         return $clone;
     }
@@ -68,14 +71,14 @@ class Service
     public function then(callable $action, iterable $deps = []): self
     {
         $clone = clone $this;
-        $clone->action = callback($action, $deps);
+        $clone->actions[] = callback($action, $deps);
 
         return $clone;
     }
 
     public function thenUse(string $id): self
     {
-        return $this->then(function($value, $action) use ($id) {
+        return $this->then(function ($value, $action) use ($id) {
             if (is_callable($action)) {
                 call_user_func($action, $value);
             } else {
