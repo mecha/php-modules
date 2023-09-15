@@ -27,12 +27,12 @@ function env(string $name): Service
 
 function alias(string $original): Service
 {
-    return new Service(fn ($deps) => $deps->current(), [$original]);
+    return new Service(fn ($deps) => $deps[0], [$original]);
 }
 
 function template(string $template, array $deps = []): Service
 {
-    return new Service(fn ($deps) => vsprintf($template, [...$deps]), $deps);
+    return new Service(fn ($deps) => vsprintf($template, $deps), $deps);
 }
 
 /** @param list<string|Service> $deps */
@@ -44,7 +44,7 @@ function instance(string $class, array $deps = []): Service
 /** @param list<string|Service> $deps */
 function factory(callable $callback, array $deps = []): Service
 {
-    return new Service(fn ($deps) => call_user_func_array($callback, [...$deps]), $deps);
+    return new Service(fn ($deps) => call_user_func_array($callback, $deps), $deps);
 }
 
 /** @param list<string|Service> $deps */
@@ -56,7 +56,7 @@ function callback(callable $callback, array $deps = []): Service
 /** @param list<string|Service> $deps */
 function collect(array $deps): Service
 {
-    return new Service(fn ($deps) => [...$deps], $deps);
+    return new Service(fn ($deps) => $deps, $deps);
 }
 
 /** @param list<string|Service> $deps */

@@ -21,7 +21,7 @@ class ServiceTest extends TestCase
         $cntr = new TestContainer(['foo' => 1, 'bar' => 2]);
         $actual = Service::resolveDeps($cntr, ['foo', 'bar']);
 
-        $this->assertEqualsCanonicalizing(['foo' => 1, 'bar' => 2], [...$actual]);
+        $this->assertEqualsCanonicalizing(['foo' => 1, 'bar' => 2], $actual);
     }
 
     /** @covers Service::__invoke */
@@ -31,7 +31,7 @@ class ServiceTest extends TestCase
 
         $expected = new stdClass();
         $service = new Service(function ($deps) use ($expected) {
-            $this->assertEqualsCanonicalizing([1, 2], [...$deps]);
+            $this->assertEqualsCanonicalizing([1, 2], $deps);
             return $expected;
         }, ['foo', 'bar']);
 

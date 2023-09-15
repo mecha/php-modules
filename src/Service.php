@@ -97,16 +97,20 @@ class Service
 
     /**
      * @param iterable<string|Service> $deps
-     * @return iterable<mixed>
+     * @return list<mixed>
      */
-    public static function resolveDeps(ContainerInterface $c, iterable $deps): iterable
+    public static function resolveDeps(ContainerInterface $c, iterable $deps): array
     {
+        $result = [];
+
         foreach ($deps as $dep) {
             if ($dep instanceof self) {
-                yield $dep($c);
+                $result[] = $dep($c);
             } else {
-                yield $c->get($dep);
+                $result[] = $c->get($dep);
             }
         }
+
+        return $result;
     }
 }
