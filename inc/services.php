@@ -62,7 +62,7 @@ function collect(array $deps): Service
 /** @param list<string|Service> $deps */
 function extend(callable $extension, array $deps = []): Service
 {
-    return new Service(fn ($deps, $c, $p) => $extension($p, $deps, $c));
+    return new Service(fn ($deps, $c, $p) => $extension($p, ...$deps));
 }
 
 function run(callable $callback, array $deps = []): Service
