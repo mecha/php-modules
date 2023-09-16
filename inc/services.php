@@ -64,7 +64,7 @@ function collect(array $deps): Service
 /** @param list<string|Service> $deps */
 function extend(callable $extension, array $deps = []): Service
 {
-    return new Service(fn ($deps, $c, $p) => $extension($p, ...$deps), $deps);
+    return new Service(fn ($deps, $p) => $extension($p, ...$deps), $deps);
 }
 
 function run(callable $callback, array $deps = []): Service
@@ -75,7 +75,7 @@ function run(callable $callback, array $deps = []): Service
 /** @param list<string|Service> $deps */
 function load(string $path, array $deps): Service
 {
-    return new Service(function ($deps, $c, $p) use ($path) {
+    return new Service(function ($deps, $p) use ($path) {
         $fn = require $path;
         assert(is_callable($fn));
         return call_user_func_array($fn, [...$deps]);

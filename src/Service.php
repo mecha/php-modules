@@ -91,6 +91,6 @@ class Service
     {
         $deps = resolveDeps($c, $this->deps);
 
-        return call_user_func_array($this->factory, [$deps, $c, $prev]);
+        return call_user_func_array($this->factory, [$deps, $prev]);
     }
 }
