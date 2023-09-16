@@ -14,16 +14,17 @@ class TemplateTest extends TestCase
     /** @covers template */
     public function test(): void
     {
-        $c = new TestContainer([
-            'name' => 'John',
-            'age' => 20,
-        ]);
+        $template = '%s is %.2f years old';
+        $service = template($template, ['name', 'age']);
 
-        $service = template('%s is %.2f years old', ['name', 'age']);
+        $name = 'John';
+        $age = 20;
+
+        $c = new TestContainer(compact('name', 'age'));
 
         $actual = $service($c);
-        $expect = 'John is 20.00 years old';
+        $expected = sprintf($template, $name, $age);
 
-        $this->assertSame($expect, $actual);
+        $this->assertSame($expected, $actual);
     }
 }

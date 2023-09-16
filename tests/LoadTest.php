@@ -12,11 +12,11 @@ use function Mecha\Modules\load;
 class LoadTest extends TestCase
 {
     /** @covers load */
-    public function test_load(): void
+    public function test(): void
     {
+        $c = new TestContainer(['a' => 54, 'b' => 15]);
         $service = load(__DIR__ . '/files/sum.php', ['a', 'b']);
-        $cntr = new TestContainer(['a' => 54, 'b' => 15]);
-        $actual = $service($cntr);
+        $actual = $service($c);
 
         $this->assertSame(54 + 15, $actual);
     }

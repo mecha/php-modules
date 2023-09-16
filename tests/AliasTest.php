@@ -12,12 +12,22 @@ use function Mecha\Modules\alias;
 class AliasTest extends TestCase
 {
     /** @covers alias */
-    public function test_alias(): void
+    public function test(): void
     {
         $alias = alias('foo');
         $cntr = new TestContainer(['foo' => 'bar']);
         $actual = $alias($cntr);
 
         $this->assertEquals('bar', $actual);
+    }
+
+    /** @covers alias */
+    public function test_not_exists(): void
+    {
+        $alias = alias('baz');
+        $cntr = new TestContainer(['foo' => 'bar']);
+        $actual = $alias($cntr);
+
+        $this->assertNull($actual);
     }
 }

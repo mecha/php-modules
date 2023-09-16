@@ -17,12 +17,7 @@ class RunTest extends TestCase
     public function test_run(): void
     {
         $module = [
-            run(
-                function ($d1, $d2) {
-                    echo "$d1 $d2\n";
-                },
-                ['d1', 'd2']
-            ),
+            run(fn($d1, $d2) => printf("%s %s\n", $d1, $d2), ['d1', 'd2']),
             'd1' => value('hello'),
             'd2' => value('world')
         ];
