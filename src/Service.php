@@ -7,21 +7,22 @@ namespace Mecha\Modules;
 use LogicException;
 use Psr\Container\ContainerInterface;
 
-/**
- * @type DepResolveFn = callable(): Generator<mixed>
- */
 class Service
 {
-    /** @var callable(DepResolveFn,ContainerInterface,mixed): mixed */
+    /** @var callable(array<mixed>,mixed): mixed */
     public $factory;
     /** @var list<string|Service> */
     public array $deps = [];
+    /** @var array<string,callable(ContainerInterface,mixed,mixed):mixed> */
+    public array $extensions = [];
     /** @var list<Service> */
     public array $actions = [];
 
     /**
-     * @param callable(DepResolveFn,ContainerInterface,mixed): mixed $factory
-     * @param list<string|Service> $deps
+     * Construct a new service.
+     *
+     * @param callable(array<mixed>,mixed): mixed $factory A function that takes the deps and previous value.
+     * @param list<string|Service> $deps List of dependency IDs or service instances.
      */
     public function __construct(callable $factory, array $deps = [])
     {
