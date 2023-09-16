@@ -17,7 +17,8 @@
         },
         "files": [
             "inc/services.php",
-            "inc/modules.php"
+            "inc/modules.php",
+            "inc/prefixing.php"
         ]
     },
     "autoload-dev": {

@@ -21,7 +21,7 @@ function scope(string $prefix, iterable $module): iterable
         }
 
         if ($service instanceof Service) {
-            $newSrv = $service->prefixDeps($prefix);
+            $newSrv = prefixDeps($prefix, $service);
         } else {
             $newSrv = $service;
         }
@@ -32,7 +32,7 @@ function scope(string $prefix, iterable $module): iterable
     if ($module instanceof Generator) {
         $run = $module->getReturn();
         if ($run !== null) {
-            return $run->prefixDeps($prefix);
+            return prefixDeps($prefix, $run);
         }
     }
 
@@ -61,14 +61,5 @@ function group(iterable $modules): iterable
 {
     foreach ($modules as $module) {
         yield from $module;
-    }
-}
-
-function maybePrefix(string $str, string $prefix, string $ignore): string
-{
-    if ($str[0] === $ignore) {
-        return substr($str, strlen($ignore));
-    } else {
-        return $prefix . $str;
     }
 }

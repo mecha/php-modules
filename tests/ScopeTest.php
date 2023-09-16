@@ -8,12 +8,38 @@ use Mecha\Modules\Service;
 use PHPUnit\Framework\TestCase;
 
 use function Mecha\Modules\factory;
+use function Mecha\Modules\prefixDeps;
 use function Mecha\Modules\scope;
 use function Mecha\Modules\scopeAssoc;
 use function Mecha\Modules\value;
 
 class ScopeTest extends TestCase
 {
+    /** @covers prefixDeps */
+    public function test_prefixDeps(): void
+    {
+        $service = new Service(fn() => null, ['foo', 'bar', '@baz']);
+
+        $actual = prefixDeps('prefix/', $service)->deps;
+        $expected = ['prefix/foo', 'prefix/bar', 'baz'];
+
+        $this->assertEqualsCanonicalizing($expected, $actual);
+    }
+
+    /** @covers prefixDeps */
+    public function test_prefixDeps_action(): void
+    {
+        $service = new Service(fn() => null, ['foo']);
+        $service = $service->then(fn() => null, ['bar', '@baz']);
+
+        $actual = prefixDeps('prefix/', $service);
+
+        $this->assertEquals(['prefix/foo'], $actual->deps);
+        $this->assertCount(1, $actual->actions);
+        $this->assertInstanceOf(Service::class, $actual->actions[0]);
+        $this->assertEquals(['prefix/bar', 'baz'], $actual->actions[0]->deps);
+    }
+
     /** @covers scope */
     public function test_scope_generator(): void
     {
@@ -33,9 +59,9 @@ class ScopeTest extends TestCase
 
         $actual = [...$sModule];
         $expected = [
-            'prefix/foo' => $foo->prefixDeps($prefix),
-            'prefix/bar' => $bar->prefixDeps($prefix),
-            'baz' => $baz->prefixDeps($prefix),
+            'prefix/foo' => prefixDeps($prefix, $foo),
+            'prefix/bar' => prefixDeps($prefix, $bar),
+            'baz' => prefixDeps($prefix, $baz),
         ];
 
         $this->assertEqualsCanonicalizing($expected, $actual);
@@ -59,9 +85,9 @@ class ScopeTest extends TestCase
 
         $actual = [...$sModule];
         $expected = [
-            'prefix/foo' => $foo->prefixDeps($prefix),
-            'prefix/bar' => $bar->prefixDeps($prefix),
-            'prefix/baz' => $baz->prefixDeps($prefix),
+            'prefix/foo' => prefixDeps($prefix, $foo),
+            'prefix/bar' => prefixDeps($prefix, $bar),
+            'prefix/baz' => prefixDeps($prefix, $baz),
         ];
 
         $this->assertEqualsCanonicalizing($expected, $actual);

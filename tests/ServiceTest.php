@@ -31,31 +31,6 @@ class ServiceTest extends TestCase
         $this->assertSame($expected, $actual);
     }
 
-    /** @covers Service::prefixDeps */
-    public function test_prefixDeps(): void
-    {
-        $service = new Service(fn() => null, ['foo', 'bar', '@baz']);
-
-        $actual = $service->prefixDeps('prefix/')->deps;
-        $expected = ['prefix/foo', 'prefix/bar', 'baz'];
-
-        $this->assertEqualsCanonicalizing($expected, $actual);
-    }
-
-    /** @covers Service::prefixDeps */
-    public function test_prefixDeps_action(): void
-    {
-        $service = new Service(fn() => null, ['foo']);
-        $service = $service->then(fn() => null, ['bar', '@baz']);
-
-        $actual = $service->prefixDeps('prefix/');
-
-        $this->assertEquals(['prefix/foo'], $actual->deps);
-        $this->assertCount(1, $actual->actions);
-        $this->assertInstanceOf(Service::class, $actual->actions[0]);
-        $this->assertEquals(['prefix/bar', 'baz'], $actual->actions[0]->deps);
-    }
-
     /** @covers Service::then */
     public function test_then(): void
     {

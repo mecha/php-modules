@@ -30,38 +30,6 @@ class Service
         $this->deps = $deps;
     }
 
-    /** @param list<string|Service> $deps */
-    public function withDeps(array $deps): self
-    {
-        $clone = clone $this;
-        $clone->deps = $deps;
-        return $clone;
-    }
-
-    public function prefixDeps(string $prefix): self
-    {
-        $newDeps = [];
-
-        foreach ($this->deps as $dep) {
-            if ($dep instanceof self) {
-                $newDeps[] = $dep->prefixDeps($prefix);
-            } elseif (is_string($dep)) {
-                $newDeps[] = maybePrefix($dep, $prefix, '@');
-            }
-        }
-
-        $clone = $this->withDeps($newDeps);
-
-        $newActions = [];
-        foreach ($clone->actions as $action) {
-            $newActions[] = $action->prefixDeps($prefix);
-        }
-
-        $clone->actions = $newActions;
-
-        return $clone;
-    }
-
     /** @param callable(mixed,ContainerInterface): void $action */
     public function then(callable $action, iterable $deps = []): self
     {
