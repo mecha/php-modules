@@ -17,18 +17,16 @@ class Service
     /** @var list<string|Service> */
     public array $deps = [];
     /** @var list<Service> */
-    public $actions = [];
+    public array $actions = [];
 
     /**
      * @param callable(DepResolveFn,ContainerInterface,mixed): mixed $factory
      * @param list<string|Service> $deps
-     * @param list<Service> $actions
      */
-    public function __construct(callable $factory, array $deps = [], array $actions = [])
+    public function __construct(callable $factory, array $deps = [])
     {
         $this->factory = $factory;
         $this->deps = $deps;
-        $this->actions = $actions;
     }
 
     /** @param list<string|Service> $deps */
