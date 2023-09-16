@@ -89,27 +89,8 @@ class Service
      */
     public function __invoke(ContainerInterface $c, $prev = null)
     {
-        $deps = self::resolveDeps($c, $this->deps);
+        $deps = resolveDeps($c, $this->deps);
 
         return call_user_func_array($this->factory, [$deps, $c, $prev]);
-    }
-
-    /**
-     * @param iterable<string|Service> $deps
-     * @return list<mixed>
-     */
-    public static function resolveDeps(ContainerInterface $c, iterable $deps): array
-    {
-        $result = [];
-
-        foreach ($deps as $dep) {
-            if ($dep instanceof self) {
-                $result[] = $dep($c);
-            } else {
-                $result[] = $c->get($dep);
-            }
-        }
-
-        return $result;
     }
 }

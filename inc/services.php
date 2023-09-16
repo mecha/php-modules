@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Mecha\Modules;
 
+use Psr\Container\ContainerInterface;
+
 /** @param mixed $value */
 function value($value): Service
 {
@@ -80,3 +82,19 @@ function load(string $path, array $deps): Service
     }, $deps);
 }
 
+/**
+ * @param iterable<string|Service> $deps
+ * @return list<mixed>
+ */
+function resolveDeps(ContainerInterface $c, iterable $deps): array
+{
+    $result = [];
+
+    foreach ($deps as $k => $dep) {
+        $result[$k] = ($dep instanceof Service)
+            ? $dep($c)
+            : $c->get($dep);
+    }
+
+    return $result;
+}

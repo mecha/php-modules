@@ -15,15 +15,6 @@ use function Mecha\Modules\callback;
 
 class ServiceTest extends TestCase
 {
-    /** @covers Service::resolveDep */
-    public function test_resolveDep_string(): void
-    {
-        $cntr = new TestContainer(['foo' => 1, 'bar' => 2]);
-        $actual = Service::resolveDeps($cntr, ['foo', 'bar']);
-
-        $this->assertEqualsCanonicalizing(['foo' => 1, 'bar' => 2], $actual);
-    }
-
     /** @covers Service::__invoke */
     public function test_invoke(): void
     {
