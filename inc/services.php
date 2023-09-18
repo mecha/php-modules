@@ -29,42 +29,42 @@ function env(string $name): Service
 
 function alias(string $original): Service
 {
-    return new Service(fn ($deps) => $deps[0], [$original]);
+    return new Service(fn ($c, $p, $deps) => resolveDeps($c, $deps)[0], [$original]);
 }
 
 function template(string $template, array $deps = []): Service
 {
-    return new Service(fn ($deps) => vsprintf($template, $deps), $deps);
+    return new Service(fn ($c, $p, $deps) => vsprintf($template, resolveDeps($c, $deps)), $deps);
 }
 
 /** @param list<string|Service> $deps */
 function instance(string $class, array $deps = []): Service
 {
-    return new Service(fn ($deps) => new $class(...$deps), $deps);
+    return new Service(fn ($c, $p, $deps) => new $class(...resolveDeps($c, $deps)), $deps);
 }
 
 /** @param list<string|Service> $deps */
 function factory(callable $callback, array $deps = []): Service
 {
-    return new Service(fn ($deps) => call_user_func_array($callback, $deps), $deps);
+    return new Service(fn ($c, $p, $deps) => call_user_func_array($callback, resolveDeps($c, $deps)), $deps);
 }
 
 /** @param list<string|Service> $deps */
 function callback(callable $callback, array $deps = []): Service
 {
-    return new Service(fn ($deps) => fn (...$args) => $callback(...$args, ...$deps), $deps);
+    return new Service(fn ($c, $p, $deps) => fn (...$args) => $callback(...$args, ...resolveDeps($c, $deps)), $deps);
 }
 
 /** @param list<string|Service> $deps */
 function collect(array $deps): Service
 {
-    return new Service(fn ($deps) => $deps, $deps);
+    return new Service(fn ($c, $p, $deps) => resolveDeps($c, $deps), $deps);
 }
 
 /** @param list<string|Service> $deps */
 function extend(callable $extension, array $deps = []): Service
 {
-    return new Service(fn ($deps, $p) => $extension($p, ...$deps), $deps);
+    return new Service(fn ($c, $p, $deps) => $extension($p, ...resolveDeps($c, $deps)), $deps);
 }
 
 function run(callable $callback, array $deps = []): Service
@@ -75,10 +75,10 @@ function run(callable $callback, array $deps = []): Service
 /** @param list<string|Service> $deps */
 function load(string $path, array $deps): Service
 {
-    return new Service(function ($deps, $p) use ($path) {
+    return new Service(function ($c, $p, $deps) use ($path) {
         $fn = require $path;
         assert(is_callable($fn));
-        return call_user_func_array($fn, [...$deps]);
+        return call_user_func_array($fn, resolveDeps($c, $deps));
     }, $deps);
 }
 

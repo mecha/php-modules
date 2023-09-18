@@ -24,8 +24,9 @@ class ServiceTest extends TestCase
         $cntr = new TestContainer(['foo' => 1, 'bar' => 2]);
 
         $expected = new stdClass();
-        $service = new Service(function ($deps) use ($expected) {
-            $this->assertEqualsCanonicalizing([1, 2], $deps);
+        $service = new Service(function ($c, $p, $deps) use ($cntr, $expected) {
+            $this->assertSame($cntr, $c);
+            $this->assertEqualsCanonicalizing(['foo', 'bar'], $deps);
             return $expected;
         }, ['foo', 'bar']);
 

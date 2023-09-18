@@ -30,6 +30,18 @@ class Service
         $this->deps = $deps;
     }
 
+    /**
+     * Runs the service definition.
+     *
+     * @param ContainerInterface $c The DI container.
+     * @param mixed $prev Optional previous value if the service is extending another.
+     * @return mixed The service value.
+     */
+    public function __invoke(ContainerInterface $c, $prev = null)
+    {
+        return call_user_func_array($this->factory, [$c, $prev, $this->deps]);
+    }
+
     /** @param callable(mixed,ContainerInterface): void $action */
     public function then(callable $action, iterable $deps = []): self
     {
@@ -84,16 +96,5 @@ class Service
         }, []);
 
         return $clone;
-    }
-
-    /**
-     * @param mixed $prev
-     * @return mixed
-     */
-    public function __invoke(ContainerInterface $c, $prev = null)
-    {
-        $deps = resolveDeps($c, $this->deps);
-
-        return call_user_func_array($this->factory, [$deps, $prev]);
     }
 }
