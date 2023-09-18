@@ -12,10 +12,12 @@ class Psr7Compiler
 {
     /** @var array<string,callable(ContainerInterface,mixed):mixed> */
     protected array $factories = [];
+    /** @var array<string,ExtensionList> */
+    protected array $extensions = [];
     /** @var list<callable(ContainerInterface):void> */
     protected array $actions = [];
 
-    /** 
+    /**
      * Construct a new compiler.
      * @param iterable<iterable<int|string,Service> $modules
      */
@@ -73,6 +75,11 @@ class Psr7Compiler
         }
 
         if ($service instanceof Service) {
+            foreach ($service->extensions as $extId => $extension) {
+                $this->extensions[$extId] ??= new ExtensionList();
+                $this->extensions[$extId]->add($extension, $id);
+            }
+
             foreach ($service->actions as $action) {
                 $this->actions[] = fn (ContainerInterface $c) => $action($c)($c->get($id));
             }
@@ -87,9 +94,25 @@ class Psr7Compiler
         return $this->factories;
     }
 
+    /** @return array<string,callable(ContainerInterface,mixed):mixed> */
+    public function getExtensions(): array
+    {
+        return $this->extensions;
+    }
+
     /** @return list<callable(ContainerInterface):void> */
     public function getActions(): array
     {
         return $this->actions;
+    }
+
+    /** @return callable(ContainerInterface):void */
+    public function getMergedAction(): callable
+    {
+        return function (ContainerInterface $c): void {
+            foreach ($this->actions as $action) {
+                $action($c);
+            }
+        };
     }
 }

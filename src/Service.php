@@ -51,6 +51,42 @@ class Service
     }
 
     /**
+     * @param string $id The ID of the service to extend.
+     * @param callable(mixed,mixed):mixed $fn A function that returns the new value and accepts the following args:
+     *        2. The previous value
+     *        3. The service value
+     *        4. The dependencies.
+     * @param array<string|Service> $deps The dependencies of the extension.
+     */
+    public function extends(string $id, callable $fn, iterable $deps = []): Service
+    {
+        $clone = clone $this;
+        $clone->extensions[$id] = extend($fn, $deps);
+
+        return $clone;
+    }
+
+    /**
+     * Extend an action service with an extension that calls it with the service's value and returns it unchanged.
+     *
+     * @param string $actionId The ID of the action service to extend and use.
+     * @return Service The extended action service.
+     */
+    public function use(string $actionId): self
+    {
+        $clone = clone $this;
+        $clone->extensions[$actionId] = extend(function ($action, $self) {
+            if (is_callable($action)) {
+                $action($self);
+            }
+
+            return $action;
+        }, []);
+
+        return $clone;
+    }
+
+    /**
      * @param mixed $prev
      * @return mixed
      */

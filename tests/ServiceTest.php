@@ -10,8 +10,11 @@ use Mecha\Modules\Psr7Compiler;
 use Mecha\Modules\Service;
 use Mecha\Modules\Stubs\TestContainer;
 use PHPUnit\Framework\TestCase;
+use SplStack;
 use stdClass;
 use function Mecha\Modules\callback;
+use function Mecha\Modules\factory;
+use function Mecha\Modules\value;
 
 class ServiceTest extends TestCase
 {
@@ -81,5 +84,63 @@ class ServiceTest extends TestCase
         $list = $c->get('list');
 
         $this->assertEqualsCanonicalizing([6, 9, 15], $list->getArrayCopy());
+    }
+
+    /** @covers Service::extends */
+    public function test_extends(): void
+    {
+        $initial = 'foo';
+        $expected = 'baz';
+
+        $ext = new Service(fn () => $expected);
+        $ext = $ext->extends('foo', function ($prev, $self) use ($initial, $expected) {
+            $this->assertEquals($initial, $prev);
+            $this->assertEquals($expected, $self);
+
+            return $self;
+        });
+
+        $this->assertCount(1, $ext->extensions);
+
+        $compiler = new Psr7Compiler();
+        $compiler->addModule([
+            'foo' => fn() => $initial,
+            'bar' => $ext,
+        ]);
+
+        $factories = $compiler->getFactories();
+        $extensions = $compiler->getExtensions();
+
+        $this->assertCount(1, $extensions);
+
+        $c = new Container($factories, $extensions);
+        $actual = $c->get('foo');
+
+        $this->assertEquals('baz', $actual);
+    }
+
+    /** @covers Service::use */
+    public function test_use(): void
+    {
+        $compiler = new Psr7Compiler();
+        $compiler->addModule([
+            'stack' => factory(fn () => new SplStack())->then(fn() => null, ['add']),
+            'add' => callback(fn($value, $list) => $list->push($value), ['stack']),
+            'foo' => value('foo')->use('add'),
+        ]);
+
+        $factories = $compiler->getFactories();
+        $extensions = $compiler->getExtensions();
+        $action = $compiler->getMergedAction();
+
+        $this->assertCount(1, $extensions);
+        $this->assertArrayHasKey('add', $extensions);
+
+        $c = new Container($factories, $extensions);
+        $action($c);
+
+        $actual = $c->get('stack');
+
+        $this->assertEquals(['foo'], [...$actual]);
     }
 }

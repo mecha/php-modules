@@ -13,6 +13,8 @@ class Container implements ContainerInterface
 {
     /** @var array<string,callable(ContainerInterface):mixed> */
     protected array $factories = [];
+    /** @var array<string,callable(ContainerInterface,mixed):mixed> */
+    protected array $extensions = [];
     /** @var array<string,mixed> */
     protected array $cache = [];
     /** @var list<string> */
@@ -21,11 +23,13 @@ class Container implements ContainerInterface
     /**
      * Construct a new container.
      *
-     * @param iterable<string,callable(ContainerInterface):mixed> $factories The factories.
+     * @param iterable<string,callable(ContainerInterface):mixed> $factories
+     * @param array<string,callable(ContainerInterface,mixed):mixed> $extensions
      */
-    public function __construct(iterable $factories = [])
+    public function __construct(iterable $factories = [], iterable $extensions = [])
     {
         $this->factories = is_array($factories) ? $factories : iterator_to_array($factories);
+        $this->extensions = is_array($extensions) ? $extensions : iterator_to_array($extensions);
     }
 
     /** @return mixed */
@@ -47,11 +51,19 @@ class Container implements ContainerInterface
             };
         }
 
-        $result = $this->cache[$id] ??= $this->factories[$id]($this);
+        if (!array_key_exists($id, $this->cache)) {
+            $value = $this->factories[$id]($this);
+
+            if (array_key_exists($id, $this->extensions)) {
+                $value = $this->extensions[$id]($this, $value);
+            }
+
+            $this->cache[$id] = $value;
+        }
 
         array_pop($this->stack);
 
-        return $result;
+        return $this->cache[$id];
     }
 
     public function has($id): bool

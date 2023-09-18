@@ -6,6 +6,7 @@ namespace Mecha\Modules\Test;
 
 use Mecha\Modules\Container;
 use Mecha\Modules\Psr7Compiler;
+use Mecha\Modules\Service;
 use PHPUnit\Framework\TestCase;
 use function Mecha\Modules\factory;
 use function Mecha\Modules\run;
@@ -28,7 +29,7 @@ class Psr7CompilerTest extends TestCase
         $compiler->addModule($module);
 
         $factories = $compiler->getFactories();
-        $actions = $compiler->getActions();
+        $callbacks = $compiler->getActions();
 
         $this->assertArrayHasKey('foo', $factories);
         $this->assertArrayHasKey('bar', $factories);
@@ -61,5 +62,38 @@ class Psr7CompilerTest extends TestCase
         foreach ($actions as $callback) {
             $callback($c);
         }
+    }
+
+    /** @covers Psr7Compiler::addModule Psr7Compiler::getExtensions */
+    public function test_getExtensions(): void
+    {
+        $module = [
+            'msg' => fn() => 'hello',
+            'foo' => (new Service(fn() =>'world'))->extends('msg', fn($msg, $foo) => "$msg $foo"),
+        ];
+
+        $compiler = new Psr7Compiler();
+        $compiler->addModule($module);
+
+        $extensions = $compiler->getExtensions();
+
+        $this->assertArrayHasKey('msg', $extensions);
+    }
+
+    /** @covers Psr7Compiler::getMergedAction */
+    public function test_getMergedAction(): void
+    {
+        $compiler = new Psr7Compiler();
+        $compiler->addModule([
+            run(fn() => printf('hello ')),
+            run(fn() => printf('world')),
+        ]);
+
+        $c = new Container($compiler->getFactories());
+        $action = $compiler->getMergedAction();
+
+        $action($c);
+
+        $this->expectOutputString('hello world');
     }
 }
