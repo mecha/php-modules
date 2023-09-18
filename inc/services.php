@@ -73,7 +73,7 @@ function run(callable $callback, array $deps = []): Service
 }
 
 /** @param list<string|Service> $deps */
-function load(string $path, array $deps): Service
+function load(string $path, array $deps = []): Service
 {
     return new Service(function ($c, $p, $deps) use ($path) {
         $fn = require $path;
