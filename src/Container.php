@@ -9,6 +9,7 @@ use LogicException;
 use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
 
+/** A standard PSR-11 container with extension support and circular dependency detection. */
 class Container implements ContainerInterface
 {
     /** @var array<string,callable(ContainerInterface):mixed> */

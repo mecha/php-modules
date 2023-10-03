@@ -7,7 +7,9 @@ namespace Mecha\Modules\Tests;
 use Mecha\Modules\Service;
 use PHPUnit\Framework\TestCase;
 
+use function Mecha\Modules\bind;
 use function Mecha\Modules\factory;
+use function Mecha\Modules\getDeps;
 use function Mecha\Modules\prefixDeps;
 use function Mecha\Modules\scope;
 use function Mecha\Modules\scopeAssoc;
@@ -16,34 +18,67 @@ use function Mecha\Modules\value;
 class ScopeTest extends TestCase
 {
     /** @covers prefixDeps */
-    public function test_prefixDeps(): void
+    public function test_prefixDeps_raw(): void
     {
-        $service = new Service(fn() => null, ['foo', 'bar', '@baz']);
+        $service = fn () => null;
+        $actual = prefixDeps('prefix/', $service);
 
-        $actual = prefixDeps('prefix/', $service)->deps;
-        $expected = ['prefix/foo', 'prefix/bar', 'baz'];
-
-        $this->assertEqualsCanonicalizing($expected, $actual);
+        $this->assertIsCallable($actual, 'Prefixed raw service is not callable');
     }
 
     /** @covers prefixDeps */
-    public function test_prefixDeps_action(): void
+    public function test_prefixDeps_service(): void
     {
-        $service = new Service(fn() => null, ['foo']);
-        $service = $service->then(fn() => null, ['bar', '@baz']);
+        $service = new Service(fn() => null);
+        $actual = prefixDeps('prefix/', $service);
+
+        $this->assertEquals($service, $actual);
+    }
+
+    /** @covers prefixDeps */
+    public function test_prefixDeps_extensions(): void
+    {
+        $service = new Service(fn() => null);
+        $service = $service->extends('foo', bind(fn($foo, $bar, $baz) => null, ['@bar', 'baz']));
 
         $actual = prefixDeps('prefix/', $service);
 
-        $this->assertEquals(['prefix/foo'], $actual->deps);
+        $this->assertCount(1, $actual->extensions);
+        $this->assertArrayHasKey('prefix/foo', $actual->extensions);
+        $this->assertIsCallable($actual->extensions['prefix/foo']);
+        $this->assertEquals(['bar', 'prefix/baz'], getDeps($actual->extensions['prefix/foo']));
+    }
+
+    /** @covers prefixDeps */
+    public function test_prefixDeps_actions(): void
+    {
+        $service = new Service(fn() => null);
+        $service = $service->on('foo', bind(fn($foo, $bar, $baz) => null, ['@bar', 'baz']));
+
+        $actual = prefixDeps('prefix/', $service);
+
         $this->assertCount(1, $actual->actions);
-        $this->assertInstanceOf(Service::class, $actual->actions[0]);
-        $this->assertEquals(['prefix/bar', 'baz'], $actual->actions[0]->deps);
+        $this->assertArrayHasKey('prefix/foo', $actual->actions);
+        $this->assertIsCallable($actual->actions['prefix/foo']);
+        $this->assertEquals(['bar', 'prefix/baz'], getDeps($actual->actions['prefix/foo'])); 
+    }
+
+    /** @covers prefixDeps */
+    public function test_prefixDeps_callbacks(): void
+    {
+        $service = new Service(fn() => null);
+        $service = $service->runs(bind(fn($foo, $bar) => null, ['foo', '@bar']));
+
+        $actual = prefixDeps('prefix/', $service);
+
+        $this->assertCount(1, $actual->callbacks);
+        $this->assertIsCallable($actual->callbacks[0]);
+        $this->assertEquals(['prefix/foo', 'bar'], getDeps($actual->callbacks[0]));
     }
 
     /** @covers scope */
     public function test_scope_generator(): void
     {
-
         $foo = value(1);
         $bar = factory(fn () => null, ['foo']);
         $baz = factory(fn () => null, ['foo', 'bar', '@qux']);
@@ -59,9 +94,9 @@ class ScopeTest extends TestCase
 
         $actual = [...$sModule];
         $expected = [
-            'prefix/foo' => prefixDeps($prefix, $foo),
-            'prefix/bar' => prefixDeps($prefix, $bar),
-            'baz' => prefixDeps($prefix, $baz),
+            'prefix/foo' => value(1),
+            'prefix/bar' => factory(fn() => null, ['prefix/foo']),
+            'baz' => factory(fn() => null, ['prefix/foo', 'prefix/bar', 'qux']),
         ];
 
         $this->assertEqualsCanonicalizing($expected, $actual);
@@ -77,7 +112,7 @@ class ScopeTest extends TestCase
         $module = [
             'foo' => $foo,
             'bar' => $bar,
-            'baz' => $baz,
+            '@baz' => $baz,
         ];
 
         $prefix = 'prefix/';
@@ -85,9 +120,9 @@ class ScopeTest extends TestCase
 
         $actual = [...$sModule];
         $expected = [
-            'prefix/foo' => prefixDeps($prefix, $foo),
-            'prefix/bar' => prefixDeps($prefix, $bar),
-            'prefix/baz' => prefixDeps($prefix, $baz),
+            'prefix/foo' => value(1),
+            'prefix/bar' => factory(fn() => null, ['prefix/foo']),
+            'baz' => factory(fn() => null, ['prefix/foo', 'prefix/bar', 'qux']),
         ];
 
         $this->assertEqualsCanonicalizing($expected, $actual);

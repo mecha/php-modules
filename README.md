@@ -1,662 +1,881 @@
 # PHP Modules
 
-A system for assembling a PHP application from a series of modules.
+A system for assembling a PHP application from a series of reusable modules.
 
 ⚠ **This package is still a work in progress**.
 
 # Table of Contents
 
-* [Motivation](#motivation)
-* [Modules](#modules)
-    * [Service Conventions](#service-conventions)
-        * [1. Non-String IDs](#1.-non-string-ids)
-        * [2. Extensions: Same-ID Conflicts](#2.-extensions%3A-same-id-conflicts)
-        * [3. Run Actions](#3.-run-actions)
-    * [Service Helpers](#service-helpers)
-        * [Reference](#reference)
-        * [Inline Dependencies](#inline-dependencies)
-        * [Run Actions](#run-actions)
-    * [Module Scoping](#module-scoping)
-* [Modular Applications](#modular-applications)
-* [Full Example](#full-example)
-* [License](#license)
+- [Motivation](#motivation)
+- [Getting Started](#getting-started)
+- [Modules](#modules)
+- [Services](#services)
+  - [Binding](#binding)
+  - [Wrapping](#wrapping)
+    - [factory](<#factory()>)
+    - [instance](<#instance()>)
+    - [callback](<#callback()>)
+    - [template](<#template()>)
+    - [value](<#value()>)
+    - [alias](<#alias()>)
+    - [collect](<#collect()>)
+    - [env](<#env()>)
+    - [constValue](<#constvalue()>)
+    - [globalVar](<#globalvar()>)
+    - [load](<#load()>)
+    - [invoke](<#invoke()>)
+  - [Extensions](#extensions)
+  - [Actions](#actions)
+  - [Wires](#wires)
+  - [Run callbacks](#run-callbacks)
+- [Scoping](#scoping)
+- [Advanced Setup](#advanced-setup)
+- [License](#license)
 
 # Motivation
 
-The need for a module system that is compliant with PSR-7 containers and is designed around module conventions rather
-than relying on a specific implementation. However, this package _does_ still offer an implementation.
+The need to build applications in "slices", or modules, that facilitate the wiring of application components. The module
+system must utilize PSR-11 DI containers to ensure interoperability, and is ideally compatible with
+[Dhii modules](https://github.com/Dhii/module-interface).
 
-In this context, a module is an application "slice"; a self-enclosed unit that contains all the necessary code for
-one of an application's systems. A "modular application" is an application that utilizes modules. A core motivation
-for this module system is the ability to compose an application out of nothing _but_ modules. To that end, the module
-system would need to have a very small footprint, so as to not completely overtake an application's architecture with
-leaky abstractions or introduce a lot of obscurity.
+For all intents an purposes, this is a revision of the Dhii module spec (co-authored by your truly). A big difference
+here is that the module system provides all the required scaffolding to get a modular application up and running without
+the to implement anything, as opposed to a spec that only provides the interface for modules.
+
+Simultaneously, everything is optional. The system is built to work with the bare-minimum: arrays of PSR-11 service
+definitions. Extra features are included if you choose to make use of them. You may provide your own DI container,
+compile modules yourself, and build your own module system.
+
+# Getting Started
+
+Install with Composer
+
+```
+composer require mecha/modules
+```
+
+Create an app and give it your modules:
+
+```php
+use Mecha\Modules\App;
+
+$app = new App([
+    $module1,
+    $module2,
+]);
+
+$app->addModules([
+    $module3,
+    $module4,
+]);
+```
+
+Run your app:
+
+```php
+$app->run();
+```
+
+By default, the `App` will use the default DI container and compiler implementations. If your need a more bespoke or
+customized setup, see the [Advanced Setup](#advanced-setup) section.
 
 # Modules
 
-A module is any `iterable` of PSR-7 service definitions, keyed by their ID:
+Modules are any **iterable** (arrays, iterators, and generators) value of PSR-11 service definitions.
+
+**Array example:**
 
 ```php
-// Arrays
-$loggerModule = [
-    'log_file' => fn() => 'log.txt',
-    'logger' => fn(ContainerInterface $c) => new Logger($c->get('log_file')),
-];
-
-// Iterators
-$loggerModule = new SomeFancyIterator();
-
-// Generators work too!
-function loggerModule() {
-    yield 'log_file' => fn() => 'log.txt';
-    yield 'logger' => fn(ContainerInterface $c) => new Logger($c->get('log_file'));
-};
-```
-
-## Service Conventions
-
-### 1. Non-String IDs
-
-By convention, any service that is mapped to a non-string key will have a random unique string ID generated for it.
-
-The utility of a service with an unknown generated ID may not be immediately obvious. However, we will see later how
-this can be useful when using [run actions with service helpers](#run-actions).
-
-### 2. Extensions: Same-ID Conflicts
-
-Services with the same ID get "merged" into a single service through a middleware-esque mechanism, where the resolved
-value of the first service is provided to the second, whose value gets provided to the third, and so on until all
-services that share that ID are called.
-
-A service that gets merged into a previous service with the same ID is called an "extension". Also, extension happens 
-regardless of whether the services come from the same module.
-
-For example:
-
-```php
-$module1 = [
-    'list' => fn() => [1, 2, 3]
-];
-
-$module2 = [
-    'list' => fn(ContainerInterface $c, $prev) => [...$prev, 4, 5]
-];
-
-$module3 = [
-    'list' => fn(ContainerInterface $c, $prev) => array_map(fn($n) => $n * 2, $prev)
+$module = [
+    'greeter' => function(ContainerInterface $c) {
+        return new Greeter($c->get('message'));
+    },
+    'message' => fn() => 'Hello world',
 ];
 ```
 
-In the above case, the expected value of `$c->get('list')` would be `[2, 4, 6, 8, 10]`.
-
-Note that in the above example, the order in which the modules are loaded directly affects what the value of the `list`
-service ends up being. Modules are ideally authored to be order-agnostic, but these details are left up to the modular
-application to figure out.
-
-### 3. Run Actions
-
-Modules often need to ability to run some initialization code, not just provide services to the modular application.
-For instance, a module may need to set up a router, create some event listeners, register some data, hook into a
-framework, an so on.
-
-This is where "run actions" come in. A module may provide callbacks to the modular application, that can be run
-whenever the application is ready to "run" the modules.
-
-There are 2 ways for a module to provide run actions.
-
-1. If the module is a generator, it can supply a run action by returning a callback that recieves the DI container,
-similar to a service definition. Note the use of `return` vs `yeild`:
+**Generator example:**
 
 ```php
-function myModule() {
-    yield 'message' => fn() => "Greetings human!\n",
-    
-    return function($c) {
-        echo $c->get('message');
+function module() {
+    yield 'greeter' => function(ContainerInterface $c) {
+        return new Greeter($c->get('message'));
     };
-}
+
+    yield 'message' => fn() => 'Hello world';
+];
 ```
 
-2. If the module uses service helpers, run actions can be provided by service definitions. This is covered in more
-detail in the [Service Helpers > Run Actions](#run-actions) section.
+The service definitions provided by a module will be processed and registered into a DI container. The order in which
+the modules are loaded will settle any ID conflicts across modules.
 
-## Service Helpers
+If you wish to avoid all ID conflicts, consider [scoping](#scoping) your modules.
 
-This package provides a number of service helper functions that add features to service definitions.
+# Services
 
-These helper functions focus on making it easier to write services for specific purposes, and return valid
-PSR7-compliant service definitions. For example, the below 3 service definitions are functionally equivalent:
+While a module _can_ provide plain old PSR-11 service definitions, it is recommend to use the service functions
+provided by this package in order to take full advantage of the module system.
+
+## Binding
+
+Service binding is when we rewrite a service definition to accept its dependencies as arguments, rather than just a
+PSR-11 container.
+
+We can do this using the `bind()` function:
 
 ```php
-// Raw service definition
-[
-    'log_file' => fn(ContainerInterface $c) => $c->get('log_dir') . '/log.txt',
-]
+use function Mecha\Modules\bind;
 
-// Using the `factory()` helper
-[
-    'log_file' => factory(fn(string $dir) => "$dir/log.txt", ['log_dir']),
-]
+$before = function(ContainerInterface $c) {
+    return new Greeter($c->get('message'), $c->get('name'));
+};
 
-// Using the `template()` helper
-[
-    'log_file' => template("%s/log.txt", ['log_dir']),
-]
+$after = bind(function (string $message, string $name) {
+    return new Greeter($message, $name));
+}, ['message', 'name'])
 ```
 
-Many of the helpers perform automatic dependency resolution, as can be seen in the above example.
+More specifically, the `bind()` function drops the 1st argument (the container), keeps any other arguments, and adds
+the resolved dependencies at the end of the argument list. Dependencies are always passed _after_ arguments. This will
+be important later.
 
-The `factory()` and `template()` helpers accept a list of service IDs as a second argument. These IDs will be resolved
-from the container, via `$c->get(...)`, and the values are provided to the factory function and template string
-respectively. Most of the other available helpers also provide this convenience.
+Since the result of `bind()` is a normal PSR-11 service definition, the result can be used with many of the other
+service functions provided by the module system.
 
-Here is a full reference of each service helper:
+## Wrapping
 
-### Reference
+Some of the module system's features require additional information to be optionally attached to service definitions.
+To achieve this, we can wrap service definition functions in [invocable objects](https://www.php.net/manual/en/language.oop5.magic.php#object.invoke).
 
-#### `factory()`
+This is done using the `service()` function, which simply takes the function to be wrapped.
 
-This generic helper can be used for creating any kind of service. Its arguments are:
+You won't usually need to call this function directly. Almost all of the other service functions will wrap you service
+definitions for you.
 
-1. A factory function that recieves the resolved dependencies and the container,
-1. A list of the dependency services or their IDs.
+### `factory()`
 
-Example:
+This is the simplest wrapper. It creates a wrapped bound definition for any function you provide:
 
 ```php
-[
-    'db_conn' => factory(
-        fn($dsn, $user, $pass) => new PDO($dsn, $user, $pass),
-        ['db_dsn', 'db_user', 'db_pass']
+use function Mecha\Modules\factory;
+
+$module = [
+    'message' => fn() => 'Hello world',
+    'greeter' => instance(
+        fn(string $message) => new Greeter($message),
+        ['message']
     ),
-    'db_dsn' => ...,
-    'db_user' => ...,
-    'db_pass' => ...,
-]
+];
 ```
 
-#### `template()`
+### `instance()`
 
-This helper can be used for services that use other services to compile string values. Its arguments are:
+This is a more specialized form of `factory()` that facilitates constructing instances, with the dependencies as
+constructor arguments.
 
-1. A printf-style template string,
-1. A list of the dependency services or their IDs.
+```php
+use function Mecha\Modules\instance;
 
+$module = [
+    'message' => fn() => 'Hello world',
+    'greeter' => factory(Greeter::class, ['message']),
+];
+```
+
+### `callback()`
+
+Another more specialized form of `factory()` that is equivalent to giving `factory()` a function that returns another
+function. The result is a wrapped, bound service definition that returns a function.
+
+```php
+factory(
+    function($dep1, $dep2) {
+        return function($arg1, $arg2) use ($dep1, $dep2) {
+            /*...*/
+        };
+    },
+    ['dep1', 'dep2']
+);
+
+// Equivalent to:
+
+callback(
+    function($arg1, $arg2, $dep1, $dep2) {
+        /*...*/,
+    },
+    ['dep1', 'dep2']
+);
+```
 
 Example:
 
 ```php
-[
-    'db_dsn' => template('mysql:host=%s;dbname=%s', ['db_host', 'db_name']),
-    'db_host' => ...,
-    'db_name' => ...,
-]
-```
+use function Mecha\Modules\callback;
 
-#### `instance()`
-
-This helper can be used for services that create instances of classes using their dependencies. Its arguments are:
-
-1. A fully-qualified class name string,
-1. A list of the dependency services or their IDs.
-
-This helper will call the constructor of the specified class with the resolved dependency values.
-
-Example:
-
-```php
-[
-    'db_conn' => instance(PDO::class, ['db_dsn', 'db_user', 'db_pass']),
-    'db_dsn' => ...,
-    'db_user' => ...,
-    'db_pass' => ...,
-]
-```
-
-#### `callback()`
-
-This helper can be used for services that return callbacks. Its arguments are:
-
-1. The callback function, which gets the dependencies as arguments followed by its invocation arguments,
-1. A list of the dependency services or their IDs.
-
-Example:
-
-```php
-[
-    'calculate' => callback(
-        fn($num, $offset, $mult) => ($num + $offset) * $mult
-        ['offset', 'multiplier']
+$module = [
+    'format' => fn() => 'Hello %s',
+    'greeter' => callback(
+        fn($arg, $format) => sprintf($format, $arg),
+        ['format']
     ),
-    'offset' => fn() => 2,
-    'multiplier' => fn() => 5,
-]
-
-$fn = $c->get('calculate');
-$fn(6); // => (6 + 2) * 5 => 40
+];
 ```
 
-#### `value()`
+The function given to `callback()` will recieve the arguments given to the resulting function first, followed by the
+dependencies, if the service has any.
 
-This helper can be used for services that simply return a constant value. Its only argument is the value.
+For instance, in the above example, `greeter` takes 2 arguments, but is bound to the `format` dependency. This means
+that the resulting function will take 1 argument when invoked:
 
-Example:
-
-```php
-[
-    'db_host' => value('localhost'),
-    'db_name' => value('my_db'),
-    'user_cols' => value(['id', 'name', 'email', 'role']),
-]
+```
+$greeter = $container->get('greeter');
+greeter('John'); // Output: "Hello John"
 ```
 
-#### `collect()`
+### `template()`
 
-This helper can be used to create a service that simply returns its dependencies. Its only argument is the list of
-services or their IDs.
-
-Example:
+A specialized variation of `factory()` that is focused on combining services together into a string using a
+printf-style template.
 
 ```php
-[
-    'db_tables' => collect([
-        'users_table',
-        'posts_table',
-        'comments_table',
-    ]),
-    'users_table' => ..., 
-    'posts_table' => ..., 
-    'comments_table' => ..., 
-]
+use function Mecha\Modules\template;
+
+$module = [
+    'name' => fn() => 'Neo',
+    'ammo' => fn() => 999,
+    'message' => template('%s has %d rounds left.', ['name', 'ammo']),
+];
 ```
 
-#### `alias()`
+### `value()`
 
-This helper can be used to create aliases to other services. Its only argument is the ID of the service to alias.
-
-Example:
+This function creates a wrapped service definition that resolves to a fixed value.
 
 ```php
-[
-    'original' => ...,
-    'alias' => alias('original'),
-]
+use function Mecha\Modules\value;
+
+$module = [
+    'format' => value('Hello %s'),
+];
 ```
 
-#### `constValue()`
+**Possible "gotcha"**
 
-This helper can be used to create services that return the value of a [constant][php-constants] defined with `const`
-or `define()`. Its only argument is the constant's name.
+Using `value()` is almost equivalent to `service(fn() => 'Hello %s')`. However, to use `value()` you will need to have
+the resolved value before the service definition is created.
 
-Example:
+Consider the below:
 
 ```php
-define('USING_DEFINE', 'foo');
+use function Mecha\Modules\value;
+
+$module = [
+    'using_value' => value(calculate_value()),
+    'using_fn' => fn() => calculate_value(),
+];
+```
+
+The above code will cause `calculate_value()` to be invoked, prior to loading the module into the application.
+
+It is generally recommended to only use the `value()` function with simple values that don't need to be computed.
+
+### `alias()`
+
+Creates a wrapped, bound service definition that simply resolves to its single dependency.
+
+```php
+use function Mecha\Modules\alias;
+
+$module = [
+    'person' => fn() => 'Thomas Anderson',
+    'chosen_one' => alias('person'),
+];
+```
+
+### `collect()`
+
+Creates a wrapped, bound service definition that resolves to an array that contains its dependencies.
+
+```php
+use function Mecha\Modules\collect;
+
+$module = [
+    'admin' => fn() => 'GLaDOS',
+    'tester' => fn() => 'Chell'
+    'assistant' => fn() => 'Wheatley',
+
+    'everyone' => collect(['admin', 'tester', 'assistant']),
+];
+```
+
+### `env()`
+
+Creates a wrapped service definition that resolves to an environment variable.
+
+```php
+use function Mecha\Modules\env;
+
+$module = [
+    'editor' => env('EDITOR'),
+];
+```
+
+### `constValue()`
+
+Creates a wrapped service definition that resolves to constant.
+
+```php
+use function Mecha\Modules\constValue;
+
+define('DEV_MODE', false);
+
+$module = [
+    'dev_mode' => constValue('DEV_MODE'),
+];
+```
+
+Remember that constants that are defined using the `const` keyword are implicitly namespaced!
+
+```php
+use function Mecha\Modules\constValue;
 
 namespace Foo {
-    const USING_CONST = 'bar';
+    const BAR = 123;
 }
 
-[
-    'const_1' => constValue('USING_DEFINE'),
-    'const_2' => constValue('Foo\\USING_CONST'),
-]
+$module = [
+    'foo_bar' => constValue('Foo\\BAR'),
+];
 ```
 
-#### `globalVar()`
+### `globalVar()`
 
-This helper can be used to create services that return the value of a global variable. Its only argument is
-the global variable's name.
-
-Example:
+Creates a wrapped service definition that resolves to a global variable.
 
 ```php
-global $myVar;
+use function Mecha\Modules\globalVar;
 
-[
-    'my_var' => globalVar('my_var'),
-]
+global $user;
+
+$module = [
+    'user' => globalVar('user'),
+];
 ```
 
-#### `env()`
+Note that created service definition will capture the value of the global variable at the time of its first invocation.
+If you are a caching DI container, such as the included one, then re-assignment of the global variable won't be
+reflected by the service. Direct mutations, however, should still be reflected.
 
-This helper can be used to create services that return the value of an environment variable. Its only argument is
-the name of the environment variable.
+### `load()`
 
-Example:
+Creates a wrapped service definition that loads a service definition that is returned by a PHP file.
 
-```php
-[
-    'db_pass' => env('DB_PASS'),
-]
-```
-
-#### `load()`
-
-This helper can be used to load a service definition from a file. Its arguments are:
-
-1. The path to a PHP file that returns a service definition function,
-1. A list of the dependency services or their IDs.
-
-Example:
+If no dependencies are given, the function in the specified will recieve the DI container:
 
 ```php
 // my-service.php
-
-return function($foo, $bar) {
-    return new Baz($foo, $bar->getSomething());
+return function(ContainerInterface $c) {
+    /*...*/
 };
-```
 
-```php
 // module.php
-[
-    'baz' => load('my-service.php', ['foo', 'bar']),
-    'foo' => ...,
-    'bar' => ...,
-]
+$module = [
+    'foo' => load('my-service.php'),
+];
 ```
 
-#### `extend()`
-
-This helper is very similar to the `factory()` helper, with one difference: the factory function receives the previous
-value before the dependencies as argument.
-
-It is intended to be used for extension services that need to extend previous service value.
-
-Example:
+If dependencies are given, the function returned from the file is expected to be in bound-form:
 
 ```php
-$module1 = [
-    'tables' => collect([
-        'users_table',
-        'posts_table',
-        'comments_table',
-    ]),
-];
+// my-service.php
+return function ($dep1, $dep2) {
+    /*...*/
+};
 
+// module.php
+$module = [
+    'foo' => load('my-service.php', ['dep1', 'dep2']),
+];
+```
+
+### `invoke()`
+
+Creates a wrapped, bound service definition that gets another service by its ID, and calls its resolved value.
+
+```php
+$module = [
+    'print_msg' => callback(fn($name) => printf('Hello, %s I am', $name)),
+
+    'name' => value('Yoda'),
+    'the_msg' => invoke('print_msg', ['name']),
+];
+```
+
+The above is equivalent to:
+
+```php
+$module = [
+    'print_msg' => callback(fn($name) => printf('Hello, %s I am', $name)),
+
+    'name' => value('Yoda'),
+    'the_msg' => factory(fn($print, $name) => $print($name), ['print_msg', 'name']),
+];
+```
+
+## Extensions
+
+An extension is a service definition that modifies the resolved value of another service.
+
+Extension definitions take the DI container as argument - just like service definitions - but also accept a second
+`$previous` argument. This argument will hold the resolved value of the service being extended.
+
+The return value of the extension definition will become the new value for the original service.
+
+Extensions can be created using the `extend()` function.
+
+```php
+$module = [
+    'footer' => value('Thanks for visiting my ugly blog'),
+
+    extend('footer', function(ContainerInterface $c, $footer) {
+        return "$footer | Copyright 2013";
+    }),
+];
+```
+
+Extensions declared in this way are typically anonymous. But you can include a key if you'd like!
+
+Remember that you can use `bind()` in place of any service definition:
+
+```php
+$module = [
+    'footer' => value('Thanks for visiting my ugly blog'),
+
+    extend('footer', bind(
+        fn ($footer, $year) => "$footer | Copyright 2013",
+        ['year']
+    )),
+];
+```
+
+Extensions can also be attached to wrapped services using the `extends()` method:
+
+```php
+$module = [
+    'list' => instance(AnimalList::class),
+    'item' => value('Pumba')->extends('list', function ($c, $list) {
+        $list->add($c->get('item'));
+        return $list;
+    }),
+];
+```
+
+If you use `bind()` here, the service's own value will be added as the last dependency:
+
+```php
+$module = [
+    'list' => instance(AnimalList::class),
+    'item' => value('Pumba')->extends('list', bind(function ($list, $self) {
+        $list->add($self);
+        return $list;
+    }),
+];
+```
+
+## Actions
+
+Actions are a solution to a problem. Consider the below scenario:
+
+We have a module that provides a list of users, and extends the list so that when it gets created, each user in the
+list gets their preferences loaded. Note how the extension does not actually extend the list.
+
+Then we have a second extension that adds some users to the list.
+
+```php
+$module = [
+    'users' => instance(List::class),
+
+    extend('list', bind(function(List $users) {
+        foreach ($users as $user) {
+            $user->loadPreferences();
+        }
+
+        return $users;
+    }),
+
+    extend('list', bind(function(List $list) {
+        $list->add(new User('Abigail'));
+        $list->add(new User('Britney'));
+        $list->add(new User('Chrissy'));
+        return $list;
+    }),
+];
+```
+
+This, unfortunately, won't have the expected outcome. Extensions are loaded in the provided order, which means that the
+first extension will recieve an empty list. The second list will then add the users, but by that point it would be too
+late.
+
+To fix this, we'll need to reorder the extensions in this module. However, if our services are not all located in a
+single module, managing order can be a nightmare.
+
+---
+
+This is where actions come in.
+
+Actions are simply extensions whose return value is ignored and are run _after_ regular extensions. This guarantees
+the actions recieve the final value of the extended service, and that no other action will modify its value.
+
+They are created using the `action()` function.
+
+```php
+use function Mecha\Modules\action;
+
+$module = [
+    'users' => instance(List::class),
+
+    action('users', function($c, $users) {
+        foreach ($users as $user) {
+            $user->loadPreferences();
+        }
+    }),
+
+    extend('list', bind(function(List $list) {
+        $list->add(new User('Abigail'));
+        $list->add(new User('Britney'));
+        $list->add(new User('Chrissy'));
+        return $list;
+    }),
+];
+```
+
+This will now have the expected outcome, since the action is guaranteed to run after all other extensions.
+
+## Wires
+
+Wires are a convenience built on top of actions that can be used for better code co-location and separation of
+concerns across your modules.
+
+Consider the example from the previous section, split into 2 modules:
+
+```php
+// module1.php
+$module1 = [
+    'users' => instance(List::class),
+];
+```
+
+```php
+// module2.php
 $module2 = [
-    'tables' => extend(
-        fn(array $tables, $newTable) => [...$tables, $newTable],
-        ['new_table'],
-    ),
-    'new_table' => ...,
+    extend('list', bind(function(List $list) {
+        $list->add(new User('Charlie'));
+    }),
 ];
 ```
 
-### Inline Dependencies
+The second module extends the `list` service from the first module to add a new user. This burdens the second module
+with knowing _how_ to add a new user. Specifically, it must know that a `list` service exists, that it is a `List`
+object, and that new users need to added via the `add()` method.
 
-Service helpers that accept a list of dependencies are not limited to only recieving string IDs. Service definitions
-may also be provided.
+Imagine if we rename `List::add()` to `Registry::register()`, or change some service IDs. We'd have to update every
+extension for the `users` service to use the new methods or new service IDs.
 
-Example:
+Ideally, these details are encapsulated in the first module. And wires are a way to achieve that!
 
-```php
-$module = [
-    'logger' => instance(Logger::class, [
-        template("%s/log.txt", ['log_dir'])
-    ]),
-    'log_dir' => value('/var/log/my_app'),
-]
-```
+---
 
-In the above example, we are able to utilize the `instance()` helper even though the log file is not declared as its
-own service. We instead embed an inline dependency that generates the log file value from the existing `log_dir`
-service by using the `template()` helper.
-
-Inline dependencies reduce the need to create services that only exist to be dependencies for 1 other service; a
-"problem" that is often encountered when using these service helpers.
-
-### Run Actions
-
-Service helpers can have [run actions](#3.-run-actions) associated with them. This is done using the `then()` chaining
-method.
-
-Consider the below example:
+First, the "burdened" module must provide a "wire", which is similar to an action:
 
 ```php
-[
-    'log_file' => value('log.txt'),
-    'logger' => instance(Logger::class, ['log_file'])
-                  ->then(fn($logger) => $$logger->clear(), [...]);
-]
-```
-
-The `then()` takes a callback function and a list of dependencies as arguments, similar to the `factory()` helper.
-However, unlike the `factory()` helper, the callback function will always recieve its own service value as the first
-argument. The dependencies start from the 2nd argument, and the last argument is always the container.
-
-```php
-[
-    'foo' => factory(...)
-              ->then(fn($foo, $dep1, $dep2, $c) => ..., ['dep1', 'dep2']),
-]
-```
-
-The callback function given to `then()` will be run by the modular application as a run action.
-
-This allows service definitions to provide some initialization code that is run after the application has loaded all
-of its modules.
-
-You may recall that [generator modules can return run actions](#3.-run-actions). Non-generator modules can provide
-run actions that are not associated with any service using the `run()` service helper.
-
-It shares the same signature as the [`callback()`](#callback) helper.
-
-```php
-$module = [
-    'users_table' => instance(UsersTable::class),
-    run(fn($table) => $table->create(), ['users_table'])
-];
-```
-
-In fact, `run()` is equivalent to `callback(...)->then(fn($cb) => $cb())`.
-
-You'll also notice that no ID was provided to the `run()` service. This means that the service will have a unique
-ID generated for it. Since we don't care about being able to `get()` this service from the container (we only want it
-to be run), this actually works in our favour. We don't need to come up with names for things that don't need them.
-
-[php-constants]: https://www.php.net/manual/en/language.constants.syntax.php
-
-### Module Scoping
-
-Another benefit of using the service helper functions is that they record each service's dependencies. This is because
-the returned service definitions from the helper functions area actually objects that are invocable via `__invoke()`,
-and save their dependencies as a public property:
-
-```php
-$service = instance(Foo::class, ['bar', 'baz']);
-$service->deps // ['bar', 'baz']
-```
-
-This enables the application to manipulate a module's services if needed.
-
-One such useful manipulation is scoping: where all of a module's services are prefixed by some string to ensure that
-no ID conflicts occur unintentionally. This is only possible if the dependencies can also be renamed.
-
-Scoping is done using the `scope()` function. For example:
-
-```php
-$module = [
-    'foo' => instance(Foo::class, ['bar']),
-    'bar' => value('hello'),
-];
-
-$sModule = scope('mod/', $module);
-```
-
-This creates a module that is equivalent to the below:
-
-```php
-$module = [
-    'mod/foo' => instance(Foo::class, ['mod/bar']),
-    'mod/bar' => value('hello'),
-];
-```
-
-_Note that the use of `/` as a scoping delimiter is not enforced. You can use any separator you like._
-
-Modules can prefix dependency IDs with a `@` character to signify that the dependency should not be prefixed by the
-application. This is often because the dependency is expected to be provided by another module.
-
-```php
-$module1 = scope('mod1/', [
-    'logger' => instance(Logger::class, ['@log_file']),
-]);
-
-$module2 = scope('mod2/', [
-    'log_file' => value('log.txt'),
-]);
-```
-
-The scoped `$module1` in the above example becomes:
-
-```php
+// module1.php
 $module1 = [
-    'mod1/logger' => instance(Logger::class, ['log_file']),
+    'users' => instance(List::class),
+    'add_user' => wire('users', function(List $users, User $user) {
+        $users->add($user);
+    },
 ];
 ```
 
-Here are some reasons why you may want to consider scoping:
+Under the hood, this will create an action for the `users` service that runs the wire function for every connected
+service. The wire function takes the extended service and the connect service as arguments.
 
-1. No unintentional ID conflicts.  
-All service IDs are prefixed, removing the need to worry about ID conflicts.
+_Tip: If you need to use other services in your wire function, you can pass a bound function._
 
-1. External dependencies are explicitly marked with a `@` character.  
-This makes it clearer when a module uses a service that it itself does not provide, reducing obscurity.
-
-1. No inter-module extensions.  
-If all modules are scoped by the application, modules cannot extend services from other modules since doing so would
-require knowing what prefix the application is using for its modules. This forces modules to extend using
-application-level slots.  
-Rather than extending another module's `log_file` service, your module would instead extend `@logger/log_file`, for
-example. This allows modules to be decoupled from each other, while explicitly expecting the application to have some
-module, any module, mapped to the `logger/` prefix that provides a `log_file` service.  
-This subtle difference makes working with many modules much easier.
-
-# Modular Applications
-
-For an application to utilize modules, it only needs to iterate over a module list, collect their service definitions
-and run actions, add the service definitions to a DI container, and finally run the run actions using the container.
-
-The simplest way to do this is to use this package's `App` class.
+We can connect other services to the wire by calling the `wire()` method on wrapped services.
 
 ```php
-$databaseModule = [...];
-$loggerModule = [...];
-
-$app = new App([
-    scope('db/', $databaseModule),
-    scope('logger/', $loggerModule),
-]);
-
-$app->addModule([
-    ...
-]);
-
-$app->run();
+// module2.php
+$module2 = [
+    'albert' => factory(fn() => new User('Alberg'))->wire('add_user'),
+    'bobby' => factory(fn() => new User('Bobby'))->wire('add_user'),
+];
 ```
 
-The `App` class accepts a container factory function as a second argument, should you need to supply your own container
-implemention. The factory function recieves an associative array of all the services collected from all the modules.
+Now, when `users` is being created by the DI container, the wire action will run its function twice; once for `albert`
+and once for `bobby`.
+
+This allows the second module to register users without knowing the details of the first module. We can now change
+the internals of the first module, and as long as we also update the wire, other modules should be unaffected.
+
+# Run Callbacks
+
+Run callbacks are functions that are provided by a module that need to be invoked when the application "runs". You
+may recall that when you create an app, you can call `$app->run()`. This is when module run callbacks are invoked.
+
+There is no limit on how many run callbacks a module can provide. They will all be run in sequence, in the same order
+provided by the module.
+
+The easiest way to add a run callback to a module is to wrap a service definition in `run()`. This service can usually
+be left anonymous.
 
 ```php
-$app = new App([...], fn($services) => new SpecialContainer($services));
+$module = [
+    run(function(ContainerInterface $c) {
+        echo "App is running!\n";
+    }),
+];
 ```
 
-If you need more control, you can bypass using the `App` class altogether, provided that you adhere to the
-[service conventions](#service-conventions). If you do not need to modify how module services get prepared for the
-DI contianer, you can use the `Psr7Compiler` class to compile modules into a list of PSR7-compliant services and a list
-of run actions.
-
-Example:
+And of course, we can use bind here too:
 
 ```php
-$modules = [...];
-$compiler = new Psr7Compiler($modules);
+$module = [
+    'version' => value('1.0'),
 
-$compiler->addModule([
-    ...
-]);
-
-$factories = $compiler->getFactories(); // Give these to your DI container
-$actions = $compiler->getActions(); // Run these functions after all modules are loaded
+    run(bind(
+        function($version) {
+            echo "App v{$version}\n";
+        },
+        ['version']
+    ),
+];
 ```
 
-# Full Example
+Run callbacks can also be attached to wrapped services using the `runs()` method.
 
-Here is an example of a demo application that parses an expression from STDIN and evaluates it. The implementation code
-for the application's functionality is omitted from the example for brevity. The example focus on demonstrating
-various aspects of the module system, including:
+If you provide a bound function, the service's own value will be added as the last dependency:
 
-1. Generator modules with argumuents
-1. Run actions
-1. Custom service helpers
-1. Module scoping
+```php
+$module = [
+    'server' => instance(Server::class)->runs(bind(function($server) {
+        $server->start();
+    })),
+];
+```
+
+Alternatively, you can use `->then(...)` as a shorthand for `->runs(bind(...))`.
+
+```php
+$module = [
+    'server' => instance(Server::class)->then(function($server) {
+        $server->start();
+    }),
+];
+```
+
+If your run callback is already declared as a service, you can use [`invoke()`](#invoke()) to run it:
+
+```php
+$module = [
+    'init' => callback(fn() => printf('Initializing...')),
+    run(invoke('init')),
+];
+```
+
+It even works on service-attached run callbacks:
+
+```php
+$module = [
+    'init' => callback(fn(Server $s) => $s->start()),
+    'server' => instance(Service::class)->run(invoke('init'))
+];
+```
+
+_Note: `invoke()` cannot be used with `$service->then()`._
+
+# Scoping
+
+Scoping is the act of taking a module and prefixing all of their services to ensure that none of its service IDs
+conflict with those from other modules.
+
+It's not enough to simply prefix each service's ID with a string. Doing so would break the services that depend on the
+original ID. To properly scope a module, we must also prefix every service's dependencies. For this reason, scoping
+only works on **wrapped services**.
 
 ----
 
-The core logic module:
+To scope a module, use the `scope()` function.
 
 ```php
-function coreModule(string $input) {
-    yield 'parser' => instance(Parser::class, [
-        value($input)
-    ]);
-
-    yield 'calculator' => instance(Calculator::class, ['operators']);
-    yield 'operators' => value([]); // Empty for now - will be extended by other modules
-
-    yield run(function($calc, $parser) {
-        $expr = $parser->parse();
-        echo $calc->eval($expr);
-    }, ['calculator', 'parser']);
-}
+$module = scope('greeter.', [
+    'name' => value('Michael Scott'),
+    'message' => template('Hello %s', ['name']),
+]);
 ```
 
-A custom service helper:
+The above becomes equivalent to:
 
 ```php
-function operator(string $pattern, callable $evalFn) {
-    // Create an operator instance
-    return instance(Operator::class, [value($pattern), callback($evalFn)])
-            // Register the operator to the `operators` service
-            ->then(fn($self, $ops) => [...$ops, $self], ['@core/operators']));
-}
-```
-
-A couple of modules that extend the core module via the custom helper:
-
-```php
-$basicOps = [
-    'add' => operator('? + ?', fn ($a, $b) => $a + $b),
-    'sub' => operator('? - ?', fn ($a, $b) => $a - $b),
-    'mul' => operator('? * ?', fn ($a, $b) => $a * $b),
-    'div' => operator('? / ?', fn ($a, $b) => $a / $b),
+$modules = [
+    'greeter.name' => value('Michael Scott'),
+    'greeter.message' => template('Hello %s', ['greeter.name'])
 ];
 ```
 
-```php
-$trigOps = [
-    'sin' => operator('sin(?)', fn($n) => sin($n)),
-    'cos' => operator('cos(?)', fn($n) => cos($n)),
-    'tan' => operator('tan(?)', fn($n) => tan($n)),
-];
-```
+_Note: the use of `.` as a prefix separator is not enforced. You can use any prefix you like._
 
-And finally, the application:
+**Excluding IDs**
+
+You may wish to exclude some ideas from scoping. For instance, when a service depends on a service from another module.
+
+To exclude an ID, prefix it with the `@` symbol.
 
 ```php
-$input = fgets(STDIN);
-
-$app = new App([
-    scope('core/', coreModule($input)),
-    scope('ops/basic', $basicOps),
-    scope('ops/trig', $trigOps),
+$module1 = scope('greeter.', [
+    'message' => template('Hello %s', ['@name']),
 ]);
 
-$app->run();
+$module2 = [
+    'name' => value('Michael Scott'),
+];
 ```
+
+This allows us to scope modules while maintaining references to services from other modules. As an added bonus, the
+service ID now explicitly indicates, by virtue of the `@` prefix, that it refers to an external service.
+
+# Advanced Setup
+
+## Decorating modules
+
+Since modules are just `iterable` values of services, you can decorate them easily with a generator function.
+
+For example, let's say you want to inject run callbacks for every service with a `!` ID prefix:
+
+```php
+function autorun(iterable $module) {
+    foreach ($module as $id => $service) {
+        if (is_string($id) && $id[0] === '!') {
+            $id = substr($id, 1);
+            yield run(invoke($id));
+        }
+
+        yield $id => $service;
+    }
+}
+```
+
+## Custom container
+
+If you need to use a specific DI container implementation, you can provide a factory function to the `App` class:
+
+```php
+$app = new App([], fn($factories, $extensions) => /*...*/);
+```
+
+The factory function will recieve the PSR-11 service factories and extensions, as associative arrays where the array
+keys are the service/extension IDs.
+
+If your container does not support extensions, you can merge the extensions into your factories using the
+`mergeExtensions()` function:
+
+```php
+$app = new App([], function ($factories, $extensions) {
+    $merged = mergeExtensions($factories, $extensions);
+    return new MyContainer($merged);
+});
+```
+
+You don't need to use the `App` class. This class is merely a convenient wrapper around the `Compiler`. If you
+require more control over how your modules are handled, you can interface with the compiler directly:
+
+```php
+$compiler = new Compiler($modules);
+$compiler->addModules($moreModules);
+$compiler->addModule($anotherOne);
+```
+
+The compiler will incrementally update its internal data after each added module. You can extract the compiled
+factories, extensions, and the callback using the following methods:
+
+```php
+$factories = $compiler->getFactories();
+$extensions = $compiler->getExtensions();
+$callback = $compiler->getCallback();
+```
+
+The factories and extensions are typically given to a DI container. The callback will need to be run by you at an
+appropriate point in time in your application's execution.
+
+For convenience, the compiler also provides a `runCallback()` method that takes a container and runs the callback. You
+can use this method as an alternative to getting the callback from the compiler and calling it yourself:
+
+```php
+$container = new MyContainer(
+    $compiler->getFactories(),
+    $compiler->getExtensions(),
+);
+
+$compiler->runCallback($container);
+```
+
+## Compatibility with Dhii Modules
+
+**Note**: _I intend to include a compatibility layer for Dhii modules, but due to Composer dependency issues related to
+the Dhii module package and its own dependencies, this is currently not possible. Conversion must be done manually. You
+can track the progress of this issue [here](https://github.com/Dhii/module-interface/issues/23)._
+
+The Dhii module system requires modules to be instances of [`Dhii\Module\ModuleInterface`](https://github.com/Dhii/module-interface).
+In this system, modules have a `setup()` method that returns a `ServiceProviderInterface`, from the (now abandoned)
+[service provider spec](https://github.com/Dhii/module-interface), and a `run()` method.
+
+Converting an iterable module to a Dhii module is actually suprisingly simple.
+
+First, create a compiler for a single module and obtain the compiled data:
+
+```php
+$compiler = new Compiler([$module]);
+$factories = $compiler->getFactories();
+$extensions = $compiler->getExtensions();
+$callback = $compiler->getCallback();
+```
+
+Next, create a generic Dhii module that takes this data and exposes it through its interface methods:
+
+```php
+$dhiiModule = new HybridModuleThing($factories, $extensions, $callback);
+
+class HybridModuleThing implements ModuleInterface, ServiceProviderInterface
+{
+    public function __construct(
+        protected array $factories,
+        protected array $extensions,
+        protected callable $callback
+    ) {}
+
+    public function setup(): ServiceProviderInterface
+    {
+        return $this;
+    }
+
+    public function getFactories(): array
+    {
+        return $this->factories;
+    }
+
+    public function getExtensions(): array
+    {
+        return $this->extensions;
+    }
+
+    public function run(ContainerInterface $c): void
+    {
+        ($this->callback)($c);
+    }
+}
+```
+
+**Tip**: You can make your Dhii module implement `ServiceProviderInterface` and then `return $this` from `setup()`.
 
 # License
 

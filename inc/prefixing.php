@@ -4,32 +4,63 @@ declare(strict_types=1);
 
 namespace Mecha\Modules;
 
+use LogicException;
+
 /**
  * Prefixes a services's dependencies and actions, recursively.
  *
  * @param string $prefix The prefix to add.
- * @param Service $service The service.
- * @return Service A prefixed copy of the service.
+ * @param callable $service The service.
+ * @return callable A prefixed copy of the service.
  */
-function prefixDeps(string $prefix, Service $service): Service
+function prefixDeps(string $prefix, callable $service): callable
 {
-    $newDeps = [];
-    foreach ($service->deps as $dep) {
-        if ($dep instanceof Service) {
-            $newDeps[] = prefixDeps($prefix, $dep);
-        } elseif (is_string($dep)) {
-            $newDeps[] = maybePrefix($dep, $prefix, '@');
+    $fn = ($service instanceof Service)
+        ? $service->definition
+        : $service;
+
+    if ($fn instanceof BoundFn) {
+        $deps = [];
+        foreach ($fn->getDeps() as $i => $dep) {
+            if (is_string($dep)) {
+                $deps[] = maybePrefix($dep, $prefix, '@');
+            } elseif (is_callable($dep)) {
+                $deps[] = prefixDeps($prefix, $dep);
+            } else {
+                $type = is_object($dep) ? get_class($dep) : gettype($dep);
+                throw new LogicException("Invalid dependency: [#$i] $type.");
+            }
         }
+
+        $fn = $fn->withDeps($deps);
     }
 
-    $newActions = [];
-    foreach ($service->actions as $action) {
-        $newActions[] = prefixDeps($prefix, $action);
+    if ($service instanceof Service) {
+        $extensions = [];
+        foreach ($service->extensions as $id => $extension) {
+            $newId = maybePrefix($id, $prefix, '@');
+            $extensions[$newId] = prefixDeps($prefix, $extension);
+        }
+
+        $actions = [];
+        foreach ($service->actions as $id => $action) {
+            $newId = maybePrefix($id, $prefix, '@');
+            $actions[$newId] = prefixDeps($prefix, $action);
+        }
+
+        $callbacks = [];
+        foreach ($service->callbacks as $callback) {
+            $callbacks[] = prefixDeps($prefix, $callback);
+        }
+
+        $newService = new Service($fn);
+        $newService->extensions = $extensions;
+        $newService->actions = $actions;
+        $newService->callbacks = $callbacks;
+    } else {
+        $newService = $fn;
     }
 
-    $newService = clone $service;
-    $newService->deps = $newDeps;
-    $newService->actions = $newActions;
 
     return $newService;
 }

@@ -63,3 +63,13 @@ function group(iterable $modules): iterable
         yield from $module;
     }
 }
+
+/** Utility function to make conditionally loading modules easier. */
+function conditional(bool $condition, iterable $module): iterable
+{
+    if ($condition) {
+        return $module;
+    } else {
+        return [];
+    }
+}

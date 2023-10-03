@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Mecha\Modules\Test;
 
 use Mecha\Modules\Container;
-use Mecha\Modules\Psr7Compiler;
+use Mecha\Modules\Compiler;
 use Mecha\Modules\Service;
 use PHPUnit\Framework\TestCase;
 use function Mecha\Modules\factory;
 use function Mecha\Modules\run;
 use function Mecha\Modules\value;
 
-class Psr7CompilerTest extends TestCase
+/** @covers Compiler */
+class CompilerTest extends TestCase
 {
-    /** @covers Psr7Compiler::addModule */
     public function test_addModule_factories(): void
     {
         $foo = value('foo');
@@ -25,11 +25,10 @@ class Psr7CompilerTest extends TestCase
             'bar' => $bar,
         ];
 
-        $compiler = new Psr7Compiler();
+        $compiler = new Compiler();
         $compiler->addModule($module);
 
         $factories = $compiler->getFactories();
-        $callbacks = $compiler->getActions();
 
         $this->assertArrayHasKey('foo', $factories);
         $this->assertArrayHasKey('bar', $factories);
@@ -38,7 +37,6 @@ class Psr7CompilerTest extends TestCase
         $this->assertSame($bar, $factories['bar']);
     }
 
-    /** @covers Psr7Compiler::addModule */
     public function test_addModule_callbacks(): void
     {
         $run1 = run(fn() => printf('hello '));
@@ -49,22 +47,19 @@ class Psr7CompilerTest extends TestCase
             $run2,
         ];
 
-        $compiler = new Psr7Compiler();
+        $compiler = new Compiler();
         $compiler->addModule($module);
 
         $factories = $compiler->getFactories();
-        $actions = $compiler->getActions();
+        $action = $compiler->getCallback();
 
-        $this->assertCount(2, $actions);
+        $this->assertIsCallable($action);
         $this->expectOutputString('hello world');
 
         $c = new Container($factories);
-        foreach ($actions as $callback) {
-            $callback($c);
-        }
+        $action($c);
     }
 
-    /** @covers Psr7Compiler::addModule Psr7Compiler::getExtensions */
     public function test_getExtensions(): void
     {
         $module = [
@@ -72,7 +67,7 @@ class Psr7CompilerTest extends TestCase
             'foo' => (new Service(fn() =>'world'))->extends('msg', fn($msg, $foo) => "$msg $foo"),
         ];
 
-        $compiler = new Psr7Compiler();
+        $compiler = new Compiler();
         $compiler->addModule($module);
 
         $extensions = $compiler->getExtensions();
@@ -80,20 +75,33 @@ class Psr7CompilerTest extends TestCase
         $this->assertArrayHasKey('msg', $extensions);
     }
 
-    /** @covers Psr7Compiler::getMergedAction */
-    public function test_getMergedAction(): void
+    public function test_getCallback(): void
     {
-        $compiler = new Psr7Compiler();
+        $compiler = new Compiler();
         $compiler->addModule([
             run(fn() => printf('hello ')),
             run(fn() => printf('world')),
         ]);
 
+        $this->expectOutputString('hello world');
+
         $c = new Container($compiler->getFactories());
-        $action = $compiler->getMergedAction();
+        $action = $compiler->getCallback();
 
         $action($c);
+    }
+
+    public function test_runCallback(): void
+    {
+        $compiler = new Compiler();
+        $compiler->addModule([
+            run(fn() => printf('hello ')),
+            run(fn() => printf('world')),
+        ]);
 
         $this->expectOutputString('hello world');
+
+        $c = new Container($compiler->getFactories());
+        $compiler->runCallback($c);
     }
 }

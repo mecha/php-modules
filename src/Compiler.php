@@ -7,15 +7,14 @@ namespace Mecha\Modules;
 use Generator;
 use Psr\Container\ContainerInterface;
 
-/** Compiles modules into a list of factories, for use with a PSR7 container, and a list of callbacks. */
-class Psr7Compiler
+/** Compiles modules into a list of factories, for use with a PSR-11 container, and a list of callbacks. */
+class Compiler
 {
     /** @var array<string,callable(ContainerInterface,mixed):mixed> */
     protected array $factories = [];
     /** @var array<string,ExtensionList> */
     protected array $extensions = [];
-    /** @var list<callable(ContainerInterface):void> */
-    protected array $actions = [];
+    protected FunctionList $callback;
 
     /**
      * Construct a new compiler.
@@ -23,6 +22,7 @@ class Psr7Compiler
      */
     public function __construct(iterable $modules = [])
     {
+        $this->callback = new FunctionList();
         $this->addModules($modules);
     }
 
@@ -46,7 +46,7 @@ class Psr7Compiler
         if ($module instanceof Generator) {
             $return = $module->getReturn();
             if (is_callable($return)) {
-                $this->actions[] = $return;
+                $this->callback->add($return);
             }
         }
 
@@ -76,12 +76,29 @@ class Psr7Compiler
 
         if ($service instanceof Service) {
             foreach ($service->extensions as $extId => $extension) {
+                if ($extension instanceof BoundFn) {
+                    $extension = $extension->addDep($id);
+                }
+
                 $this->extensions[$extId] ??= new ExtensionList();
-                $this->extensions[$extId]->add($extension, $id);
+                $this->extensions[$extId]->addExtension($extension);
             }
 
-            foreach ($service->actions as $action) {
-                $this->actions[] = fn (ContainerInterface $c) => $action($c)($c->get($id));
+            foreach ($service->actions as $actId => $action) {
+                if ($action instanceof BoundFn) {
+                    $action = $action->addDep($id);
+                }
+
+                $this->extensions[$actId] ??= new ExtensionList();
+                $this->extensions[$actId]->addAction($action);
+            }
+
+            foreach ($service->callbacks as $callback) {
+                if ($callback instanceof BoundFn) {
+                    $callback = $callback->addDep($id);
+                }
+
+                $this->callback->add($callback);
             }
         }
 
@@ -100,19 +117,14 @@ class Psr7Compiler
         return $this->extensions;
     }
 
-    /** @return list<callable(ContainerInterface):void> */
-    public function getActions(): array
+    /** @return callable(ContainerInterface):void */
+    public function getCallback(): callable
     {
-        return $this->actions;
+        return $this->callback;
     }
 
-    /** @return callable(ContainerInterface):void */
-    public function getMergedAction(): callable
+    public function runCallback(ContainerInterface $c): void
     {
-        return function (ContainerInterface $c): void {
-            foreach ($this->actions as $action) {
-                $action($c);
-            }
-        };
+        call_user_func($this->callback, $c);
     }
 }

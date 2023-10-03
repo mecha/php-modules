@@ -7,33 +7,49 @@ namespace Mecha\Modules\Tests;
 use Mecha\Modules\ExtensionList;
 use Mecha\Modules\Stubs\TestContainer;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 
+/** @covers ExtensionList */
 class ExtensionListTest extends TestCase
 {
-    /** @covers ExtensionList::add, ExtensionList::__invoke */
-    public function test(): void
-    {
-        $initial = 'foo';
-        $middle = 'bar';
-        $expected = 'baz';
+    public function test_ctor(): void {
+        $exts = [
+            fn($c, $p) => $p + 1,
+            fn($c, $p) => $p + 1,
+            fn($c, $p) => $p + 1,
+        ];
 
-        $extList = new ExtensionList();
+        $actions = [
+            fn($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
+            fn($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
+        ];
 
-        $extList->add(function($c, $prev) use ($initial, $middle) {
-            $this->assertInstanceOf(ContainerInterface::class, $c);
-            $this->assertEquals($initial, $prev);
-            return $middle;
-        });
+        $list = new ExtensionList($exts, $actions);
+        $c = new TestContainer();
 
-        $extList->add(function($c, $prev) use ($middle, $expected) {
-            $this->assertInstanceOf(ContainerInterface::class, $c);
-            $this->assertEquals($middle, $prev);
-            return $expected;
-        });
+        $list($c, 1);
+    }
+    
+    public function test_methods(): void {
+        $exts = [
+            fn($c, $p) => $p + 1,
+            fn($c, $p) => $p + 1,
+            fn($c, $p) => $p + 1,
+        ];
 
-        $actual = $extList(new TestContainer(), $initial);
+        $actions = [
+            fn($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
+            fn($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
+        ];
 
-        $this->assertEquals($expected, $actual);
+        $list = new ExtensionList();
+        $list->addExtension($exts[0]);
+        $list->addExtension($exts[1]);
+        $list->addExtension($exts[2]);
+        $list->addAction($actions[0]);
+        $list->addAction($actions[1]);
+
+        $c = new TestContainer();
+
+        $list($c, 1);
     }
 }

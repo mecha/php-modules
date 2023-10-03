@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Mecha\Modules\Tests;
 
-use Mecha\Modules\App;
+use Mecha\Modules\Container;
+use Mecha\Modules\Compiler;
 use PHPUnit\Framework\TestCase;
 
-use function Mecha\Modules\scope;
+use SplStack;
 use function Mecha\Modules\factory;
+use function Mecha\Modules\instance;
 use function Mecha\Modules\run;
 use function Mecha\Modules\value;
 use function Mecha\Modules\constValue;
+use function Mecha\Modules\wire;
 
 class FullTest extends TestCase
 {
@@ -29,18 +32,13 @@ class FullTest extends TestCase
             }, ['greeting', 'user']);
         };
 
-        $sModule = scope('foo/', $module());
+        $compiler = new Compiler();
+        $compiler->addModule($module());
 
-        $app = new App();
-        $app->addModule($sModule);
+        $c = new Container($compiler->getFactories(), $compiler->getExtensions());
+        $compiler->getCallback()($c);
 
-        ob_start();
-        $app->run();
-        $actual = ob_get_clean();
-
-        $expected = "hello world\n";
-
-        $this->assertEquals($expected, $actual);
+        $this->expectOutputString("hello world\n");
     }
 
     /** @covers App::run */
@@ -48,26 +46,41 @@ class FullTest extends TestCase
     {
         define('USER', 'world');
 
-        $module = function () {
-            yield 'greeting' => value("hello %s\n");
-            yield 'user' => constValue('USER');
+        $module = [
+            'greeting' => value("hello %s\n"),
+            'user' => constValue('USER'),
 
-            yield run(function ($greeting, $user) {
+            run(factory(function ($greeting, $user) {
                 printf($greeting, $user);
-            }, ['greeting', 'user']);
-        };
+            }, ['greeting', 'user'])),
+        ];
 
-        $sModule = scope('foo/', $module());
+        $compiler = new Compiler();
+        $compiler->addModule($module);
 
-        $app = new App();
-        $app->addModule($sModule);
+        $c = new Container($compiler->getFactories(), $compiler->getExtensions());
+        $compiler->getCallback()($c);
 
-        ob_start();
-        $app->run();
-        $actual = ob_get_clean();
+        $this->expectOutputString("hello world\n");
+    }
 
-        $expected = "hello world\n";
+    /** @covers Service::wire */
+    public function test_wire(): void
+    {
+        $module = [
+            'stack' => instance(SplStack::class),
+            'add' => wire('stack', fn (SplStack $stack, $item) => $stack->push($item)),
+            'item1' => value('JC')->wire('add'),
+            'item2' => value('Denton')->wire('add'),
+        ];
 
-        $this->assertEquals($expected, $actual);
+        $compiler = new Compiler([$module]);
+
+        $c = new Container($compiler->getFactories(), $compiler->getExtensions());
+        $compiler->getCallback()($c);
+
+        $stack = $c->get('stack');
+
+        $this->assertEquals(['JC', 'Denton'], iterator_to_array($stack));
     }
 }
