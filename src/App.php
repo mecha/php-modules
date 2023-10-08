@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Mecha\Modules;
 
+use LogicException;
+use Psr\Container\ContainerInterface;
+
 /** Provides a preset way to compile services from modules into a container and run all callbacks. */
 class App
 {
@@ -11,6 +14,8 @@ class App
 
     /** @var callable(array<string,callable>, array<string,callable>):ContainerInterface */
     protected $cntrFactory;
+
+    protected ?ContainerInterface $cntr = null;
 
     /**
      * Construct a new modular application.
@@ -46,14 +51,24 @@ class App
         return $this;
     }
 
+    /** @return mixed */
+    public function get(string $id)
+    {
+        if ($this->cntr === null) {
+            throw new LogicException("Cannot get service '$id' before the app runs.");
+        }
+
+        return $this->cntr->get($id);
+    }
+
     public function run(): void
     {
         $factories = $this->compiler->getFactories();
         $extensions = $this->compiler->getExtensions();
 
-        $cntr = call_user_func($this->cntrFactory, $factories, $extensions);
+        $this->cntr = call_user_func($this->cntrFactory, $factories, $extensions);
 
-        $this->compiler->runCallback($cntr);
+        $this->compiler->runCallback($this->cntr);
     }
 
     /**
