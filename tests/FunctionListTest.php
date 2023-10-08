@@ -7,6 +7,7 @@ namespace Mecha\Modules\Tests;
 use Mecha\Modules\FunctionList;
 use PHPUnit\Framework\TestCase;
 
+/** @covers FunctionList */
 class FunctionListTest extends TestCase
 {
     /** @param list<mixed> $expectedArgs */
@@ -18,8 +19,7 @@ class FunctionListTest extends TestCase
         };
     }
 
-    /** @covers FunctionList:__construct, FunctionList::__invoke */
-    public function test(): void
+    public function test_ctor(): void
     {
         $expectedArgs = [1, 2, 3];
 
@@ -34,8 +34,7 @@ class FunctionListTest extends TestCase
         $this->expectOutputString("it's the final countdown");
     }
 
-    /** @covers FunctionList::add */
-    public function test_add(): void
+    public function test_add_method(): void
     {
         $expectedArgs = [1, 2, 3];
 

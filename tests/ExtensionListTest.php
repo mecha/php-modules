@@ -11,34 +11,34 @@ use PHPUnit\Framework\TestCase;
 /** @covers ExtensionList */
 class ExtensionListTest extends TestCase
 {
-    public function test_ctor(): void {
+    public function test_ctor(): void
+    {
         $exts = [
-            fn($c, $p) => $p + 1,
-            fn($c, $p) => $p + 1,
-            fn($c, $p) => $p + 1,
+            fn ($c, $p) => $p + 1,
+            fn ($c, $p) => $p + 1,
+            fn ($c, $p) => $p + 1,
         ];
 
         $actions = [
-            fn($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
-            fn($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
+            fn ($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
+            fn ($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
         ];
 
         $list = new ExtensionList($exts, $actions);
-        $c = new TestContainer();
-
-        $list($c, 1);
+        $list(new TestContainer(), 1);
     }
-    
-    public function test_methods(): void {
+
+    public function test_add_methods(): void
+    {
         $exts = [
-            fn($c, $p) => $p + 1,
-            fn($c, $p) => $p + 1,
-            fn($c, $p) => $p + 1,
+            fn ($c, $p) => $p + 1,
+            fn ($c, $p) => $p + 1,
+            fn ($c, $p) => $p + 1,
         ];
 
         $actions = [
-            fn($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
-            fn($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
+            fn ($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
+            fn ($c, $p) => $this->assertEquals(4, $p, 'Action argument is not the final value'),
         ];
 
         $list = new ExtensionList();
@@ -48,8 +48,6 @@ class ExtensionListTest extends TestCase
         $list->addAction($actions[0]);
         $list->addAction($actions[1]);
 
-        $c = new TestContainer();
-
-        $list($c, 1);
+        $list(new TestContainer(), 1);
     }
 }

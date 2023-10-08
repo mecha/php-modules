@@ -6,8 +6,11 @@ namespace Mecha\Modules\Test;
 
 use Mecha\Modules\Container;
 use Mecha\Modules\Compiler;
-use Mecha\Modules\Service;
+use Mecha\Modules\Stubs\TestContainer;
 use PHPUnit\Framework\TestCase;
+use function Mecha\Modules\action;
+use function Mecha\Modules\bind;
+use function Mecha\Modules\extend;
 use function Mecha\Modules\factory;
 use function Mecha\Modules\run;
 use function Mecha\Modules\value;
@@ -15,14 +18,12 @@ use function Mecha\Modules\value;
 /** @covers Compiler */
 class CompilerTest extends TestCase
 {
-    public function test_addModule_factories(): void
+    public function test_compile_factories(): void
     {
-        $foo = value('foo');
-        $bar = factory(fn($foo) => "$foo!", ['foo']);
-
         $module = [
-            'foo' => $foo,
-            'bar' => $bar,
+            'value' => value('value'),
+            'bound' => bind(fn($dep) => $dep, ['dep']),
+            'service' => factory(fn($dep) => "{$dep}!!", ['dep']),
         ];
 
         $compiler = new Compiler();
@@ -30,41 +31,26 @@ class CompilerTest extends TestCase
 
         $factories = $compiler->getFactories();
 
-        $this->assertArrayHasKey('foo', $factories);
-        $this->assertArrayHasKey('bar', $factories);
+        $this->assertCount(3, $factories);
+        $this->assertArrayHasKey('value', $factories);
+        $this->assertArrayHasKey('bound', $factories);
+        $this->assertArrayHasKey('service', $factories);
 
-        $this->assertSame($foo, $factories['foo']);
-        $this->assertSame($bar, $factories['bar']);
+        $c = new TestContainer(['dep' => 'foobar']);
+
+        $this->assertEquals('value', $factories['value']($c));
+        $this->assertEquals('foobar', $factories['bound']($c));
+        $this->assertEquals('foobar!!', $factories['service']($c));
     }
 
-    public function test_addModule_callbacks(): void
-    {
-        $run1 = run(fn() => printf('hello '));
-        $run2 = run(fn() => printf('world'));
-
-        $module = [
-            $run1,
-            $run2,
-        ];
-
-        $compiler = new Compiler();
-        $compiler->addModule($module);
-
-        $factories = $compiler->getFactories();
-        $action = $compiler->getCallback();
-
-        $this->assertIsCallable($action);
-        $this->expectOutputString('hello world');
-
-        $c = new Container($factories);
-        $action($c);
-    }
-
-    public function test_getExtensions(): void
+    public function test_compile_extensions(): void
     {
         $module = [
-            'msg' => fn() => 'hello',
-            'foo' => (new Service(fn() =>'world'))->extends('msg', fn($msg, $foo) => "$msg $foo"),
+            'attached1' => value('value')->extends('foo', fn($c, $prev) => "!!$prev"),
+            'attached2' => value('value')->extends('foo', fn($c, $prev) => "$prev!!"),
+
+            'anonymous1' => extend('bar', fn($c, $prev) => "!!$prev"),
+            'anonymous2' => extend('bar', fn($c, $prev) => "$prev!!"),
         ];
 
         $compiler = new Compiler();
@@ -72,26 +58,59 @@ class CompilerTest extends TestCase
 
         $extensions = $compiler->getExtensions();
 
-        $this->assertArrayHasKey('msg', $extensions);
+        $this->assertCount(2, $extensions);
+        $this->assertArrayHasKey('foo', $extensions);
+        $this->assertArrayHasKey('bar', $extensions);
+
+        $c = new TestContainer();
+
+        $this->assertEquals('!!FOO!!', $extensions['foo']($c, 'FOO'));
+        $this->assertEquals('!!BAR!!', $extensions['bar']($c, 'BAR'));
     }
 
-    public function test_getCallback(): void
+    public function test_compile_actions(): void
     {
+        $module = [
+            'value' => value('foobar'),
+
+            'ext1' => extend('value', fn($c, $prev) => "!!$prev"),
+            'ext2' => extend('value', fn($c, $prev) => "$prev!!"),
+
+            'anon_action' => action('value', fn($c, $prev) => printf($prev . "\n")),
+            'attached_action' => value('dummy')->on('value', fn($c, $prev) => printf($prev . "\n")),
+        ];
+
         $compiler = new Compiler();
-        $compiler->addModule([
-            run(fn() => printf('hello ')),
-            run(fn() => printf('world')),
-        ]);
+        $compiler->addModule($module);
 
-        $this->expectOutputString('hello world');
+        $extensions = $compiler->getExtensions();
 
-        $c = new Container($compiler->getFactories());
-        $action = $compiler->getCallback();
+        $this->assertCount(1, $extensions);
+        $this->assertArrayHasKey('value', $extensions);
 
-        $action($c);
+        $c = new TestContainer();
+
+        $this->assertEquals('!!foobar!!', $extensions['value']($c, 'foobar'));
+        $this->expectOutputString("!!foobar!!\n!!foobar!!\n");
     }
 
-    public function test_runCallback(): void
+    public function test_compile_callbacks(): void
+    {
+        $module = [
+            'attached' => value('value')->runs(fn($c) => printf('foo')),
+            'anonymous' => run(fn($c) => printf('bar')),
+        ];
+
+        $compiler = new Compiler();
+        $compiler->addModule($module);
+
+        $callback = $compiler->getCallback();
+        $callback($c);
+
+        $this->expectOutputString('foobar');
+    } 
+
+    public function test_run_callback(): void
     {
         $compiler = new Compiler();
         $compiler->addModule([
